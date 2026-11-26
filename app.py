@@ -25,7 +25,7 @@ async def run_job(request, mode, kind, src, out):
             with log_path.open('rb') as f:
                 f.seek(max(0,log_path.stat().st_size-8192))
                 logger.error('Worker %s/%s exit %s: %s',mode,kind,proc.returncode,f.read().decode('utf-8',errors='replace'))
-            raise ValueError(f'Conversion worker failed (exit {proc.returncode}). Check server logs.')
+            raise ValueError('OCR or conversion timed out or failed. Check server logs and retry with a smaller file.' if mode=='convert' else 'Compression worker failed. Check server logs.')
     finally:
         if proc.returncode is None:
             try: os.killpg(proc.pid, signal.SIGKILL)
@@ -33,7 +33,7 @@ async def run_job(request, mode, kind, src, out):
         await proc.wait()
 
 @app.get('/health')
-def health(): return {'status':'ok','version':'4.5.6.5.19'}
+def health(): return {'status':'ok','version':'4.5.6.5.20'}
 @app.post('/convert/{kind}')
 async def run(kind:str,request:Request,file:UploadFile=File(...)):
     if kind not in KINDS: raise HTTPException(404,'Unknown converter')

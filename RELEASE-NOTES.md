@@ -1,2 +1,2 @@
-RC5 Patch 12 (4.5.6.5.19)
-Worker diagnostics, lightweight API parent, hidden/disabled failed download. Existing subprocess cancellation retained. Live deployment unverified.
+# RC5 Patch 13 (4.5.6.5.20)
+Automatic English/Malay OCR for image-only pages in text, Word, Excel, Markdown and editable HTML exports. Word retains a rendered scan; editable HTML retains existing image export. OCR text is approximate; Excel/Markdown do not reconstruct scanned tables. Explicit server connection status, existing AbortController retained. Docker installs Tesseract. Render cold start remains. No live deployment tested.

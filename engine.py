@@ -154,6 +154,15 @@ def unique_svg(svg, page):
     svg=re.sub(r'(href="\#|url\(#)([^"\)]+)',lambda m:m[1]+prefix+m[2],svg)
     return svg
 
+def scanned(p):
+    return not p.get_text().strip() and bool(p.get_images())
+
+def ocr_page(p):
+    scale=min(2.5, 2400/max(p.rect.width,p.rect.height))
+    png=p.get_pixmap(matrix=fitz.Matrix(scale,scale),alpha=False).tobytes('png')
+    result=subprocess.run(['tesseract','stdin','stdout','-l','eng+msa'],input=png,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=35,check=True)
+    return result.stdout.decode('utf-8',errors='replace').strip()
+
 def convert(kind,src,out):
     if kind in ('docxpdf','xlsxpdf','pptxpdf'): office(src,out); return
     if kind in ('txtpdf','htmlpdf'):
@@ -178,9 +187,7 @@ def convert(kind,src,out):
     with fitz.open(src) as pdf:
         if pdf.needs_pass or not 1<=len(pdf)<=100: raise ValueError('Encrypted PDF or page limit exceeded (100)')
         if kind=='pdftxt':
-            pages=[p.get_text('text',sort=True) for p in pdf]
-            if any(not t.strip() and p.get_images() for p,t in zip(pdf,pages)):
-                raise ValueError('Image-only page detected; OCR required')
+            pages=[(ocr_page(p) or '[OCR: no readable text detected]') if scanned(p) else p.get_text('text',sort=True) for p in pdf]
             out.write_text('\n\f\n'.join(pages),encoding='utf-8'); return
         if kind=='pdfimg':
             with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
@@ -198,12 +205,12 @@ def convert(kind,src,out):
                 w,h=p.rect.width,p.rect.height
                 parts.append(f'<style>@page cat{i}{{size:{w}pt {h}pt;margin:0}}</style><section style="page:cat{i};width:{w}pt;height:{h}pt;break-after:page">'+unique_svg(p.get_svg_image(text_as_path=False),i)+'</section>')
             out.write_text('<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}svg{display:block;width:100%;height:100%}section:last-child{break-after:auto}</style></head><body>'+''.join(parts)+'</body></html>',encoding='utf-8'); return
-        if any(not p.get_text().strip() and p.get_images() for p in pdf): raise ValueError('Image-only page detected; OCR required to avoid silent data loss')
-        if not any(p.get_text().strip() for p in pdf): raise ValueError('No selectable text; OCR required')
         if kind=='pdfsemantic':
             parts=[]
             for i,p in enumerate(pdf):
                 parts.append(f'<section><h2>Page {i+1}</h2>')
+                if scanned(p):
+                    parts.append('<p>OCR transcription: '+html.escape(ocr_page(p) or '[No readable text detected]').replace('\n','<br>')+'</p>')
                 drawings=p.get_drawings()
                 spans=[sp for b in p.get_text('dict',flags=fitz.TEXTFLAGS_DICT & ~fitz.TEXT_PRESERVE_IMAGES)['blocks'] for l in b.get('lines',[]) for sp in l['spans']]
                 blocks=page_blocks(p)
@@ -244,6 +251,17 @@ def convert(kind,src,out):
                 sec=doc.sections[0]; sec.page_width=Pt(p.rect.width); sec.page_height=Pt(p.rect.height); sec.left_margin=sec.right_margin=Pt(24); sec.top_margin=sec.bottom_margin=Pt(24)
             if wb: ws=wb.create_sheet(f'Page {i+1}'); row=1
             md.append(f'## Page {i+1}')
+            if scanned(p):
+                text=ocr_page(p) or '[No readable text detected]'
+                if doc:
+                    doc.add_paragraph('OCR transcription (review accuracy): '+text)
+                    scale=min(2,1800/max(p.rect.width,p.rect.height))
+                    doc.add_picture(io.BytesIO(p.get_pixmap(matrix=fitz.Matrix(scale,scale),alpha=False).tobytes('png')),width=Pt(min(400,doc.sections[0].page_width.pt-48)))
+                if wb:
+                    for line in ('OCR transcription (review accuracy): '+text).splitlines():
+                        ws.cell(row,1,line).data_type='s'; row+=1
+                md.append('OCR transcription (review accuracy): '+text)
+                continue
             for _,__,typ,data in blocks:
                 if typ=='text':
                     if doc: doc.add_paragraph(data)
