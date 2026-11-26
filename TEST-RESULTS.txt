@@ -1,3 +1,22 @@
-RC5 Beta 4.5.6.5.11 - headless Chromium + local pdf-lib/pdf.js, 7-page mixed portrait/landscape test PDF.
-PASS (sample): page load without JS errors; 19 unified cards; distinct icons; Split 3-5 ascending; Organize reverse/delete/duplicate/blank/rotate save.
-NOT TESTED: Crop, Sign, Metadata/XMP, compression, image tools, mobile, dark mode, backend conversions. Real-browser Beta testing still required.
+RC5 Beta frontend 4.5.6.5.13 - automated runtime tests, headless Chromium, 2026-11-26.
+Environment limits: pdf-lib 1.17.1 and jszip 3.10.1 served locally; pdf.js served locally as 6.2.108 (app requests 4.10.38 from CDN; 6.x has no PDFDocumentProxy.destroy(), which produced one harness-only error). No backend access. Synthetic test files only.
+
+PASS (sample)
+- Page load: no uncaught app errors; 44 tool shells; 19 unified cards; 19 distinct icons.
+- Search ("crop", "excel", no-match message), category filters (5 / 8 / 10 cards), dark theme applied, no horizontal overflow at 390 px width.
+- Split pages 3-5 selected out of order -> ascending output, correct page sizes, text selectable.
+- Organize reverse/delete/duplicate/add blank/rotate -> save: 8 pages, order and rotation correct.
+- Crop L20/T10 mm on pages rotated 0/90/180/270: all pages cropped, visual margins correct, text kept; rendered text positions match independent geometry.
+- Metadata: "Remove XMP" ticked by default -> XMP removed, Info updated; unticked -> XMP kept; original fields prefilled; edit keeps other fields; "remove XMP" removes XMP; "remove all" removes Info and XMP; page count kept.
+- Standard compression: 197 KB -> 100 KB; Info and XMP kept; text kept; 120 pages.
+- Image Resizer: aspect lock 800x400 -> 200x100; free 300x300 exact; upscale 1600x800 allowed, amber warning shown only when output is larger than the original.
+- Image Cropper: exact 300x200 output, correct origin; out-of-bounds rejected with message.
+- Sign (text) on pages rotated 0/90/180/270: placed inside the requested visual box.
+- Resize PDF to A3: 7 pages at 842x1191, text kept.
+
+NOT TESTED
+- Advanced compression and all backend conversions (no backend access); Word/Excel/PowerPoint/HTML/Text conversions.
+- Signature drawing pad, image signature transparency, signature rotation angle.
+- Watermark, Page Numbers, Rotate PDF panel, undo/redo restore, dedicated Delete/Duplicate/Extract/Blank panel clicks, OCR, translation.
+- Real mobile device, real browser (Safari/Firefox), real CDN pdf.js 4.10.38, download animation and meow sound.
+- Visual quality of compression (blur/sharpness) needs human review.
