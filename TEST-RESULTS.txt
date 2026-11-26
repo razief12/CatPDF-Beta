@@ -1,0 +1,1 @@
+Local LibreOffice: BQ v4 9 pages, grand total 698355.6245. Explicit format and numeric value checks passed. Python and JS syntax passed. Deployment and full regression not tested.

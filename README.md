@@ -1,0 +1,11 @@
+# CatPDF 4.5.3 validation build
+Existing frontend retained. Nine existing advanced conversion forms use the backend when configured. The seven other existing browser converters remain unchanged; equivalent single-file backend routes are provided but not wired to their UI. Empty backend-config.js retains old behavior, including old limitations.
+
+## Run locally
+Install LibreOffice Writer, Calc and Impress and WeasyPrint system dependencies. In backend: `pip install -r requirements.txt` then `uvicorn app:app --host 127.0.0.1 --port 8000`. Set window.CATPDF_API_URL in backend-config.js to http://localhost:8000. Serve frontend using `python -m http.server 8080` from project root; set CATPDF_ORIGINS=http://localhost:8080 before starting backend. For GitHub Pages deploy backend separately with HTTPS using backend/Dockerfile, then set its HTTPS URL in backend-config.js. Do not upload sensitive documents to a public test server.
+
+## Limitations
+Smoke tests check output creation and basic readability only, not visual or cell-by-cell fidelity. PDF reconstruction uses PyMuPDF table detection, not pdf2docx or PyMuPDF4LLM (unavailable). PDF-to-Word/Excel/Markdown may lose styles, merged cells, images and structure. Excel extraction converts recognized numeric columns and keeps other values as text to avoid accidental formulas. PDF-to-PPTX is image-based. HTML external resources disabled. Cancellation stops browser request only, not server computation. No browser regression testing or deployment performed. Backend requires production isolation (no outbound network, resource limits, authentication/rate limiting, hardened LibreOffice sandbox) before public use. Docker build untested. Dependencies pinned to installed versions, not verified latest. Test script uses original local benchmark paths and is not portable without those files.
+
+## 4.5.3 preview changes
+See RELEASE-NOTES.md and TEST-RESULTS.txt. Backend is required for the new advanced conversion changes; files are uploaded to the configured server. Previous limitations above remain except where explicitly improved in release notes. Numeric conversion is limited to recognized numeric headers. PDF HTML uses SVG rather than semantic tables. Full visual fidelity not guaranteed.

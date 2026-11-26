@@ -1,0 +1,14 @@
+RC5 development preview 1 (not final RC5)
+Implemented: explicit ascending split output order; standard compression preserves metadata; metadata fields and document-level Info/XMP removal; page selection thumbnails for delete/extract/duplicate and blank insertion controls.
+Metadata edits remove document-level XMP to avoid conflicting values; not a full privacy scrub. Existing XMP-only fields may be lost.
+Pending: unified editor, crop/sign/image live editing, advanced compression, undo/redo, full regression. Browser and PDF output tests not performed.
+
+Preview 2: interactive crop, signature position, image resize/crop previews. Browser/output tests pending. Rotated PDF visual editing unsupported.
+
+Preview 3: unified organizer, state history, move buttons, drag/drop, duplicate, blank, rotate, delete, reverse. Syntax and 8 state assertions passed; browser and PDF output not tested.
+
+Preview 4: server image-only compression, first-page comparison and resize preview. Requires backend deployment. Browser tests pending. Signature refinement and lazy loading pending.
+
+Preview 5 partial: multi-page compression and resize preview, lazy image decoding hints, mobile CSS. Draw signature, rotation, true lazy PDF rendering and browser tests remain pending.
+
+Preview 6: drawing pad, signature rotation, viewport-triggered Organize thumbnails. Syntax checked; browser and output fidelity unverified. Other thumbnail grids still eager.

@@ -1,0 +1,5 @@
+RC5 audit patch 1: health version 4.5.6.5.7; crop page selector; preserve XMP on normal metadata edits (not synchronized); submit button selection; cache bump. Rotated pages, lazy selection thumbnails and signature fidelity remain open. Syntax checks only; browser and output tests pending.
+
+Audit Patch 2: rotated crop margin mapping and signature coordinate mapping; syntax checked only. Lazy rendering and visual output verification pending.
+
+Audit Patch 3: lazy selection thumbnails, explicit optional XMP removal (not synchronization), health/cache version 4.5.6.5.9. Browser and PDF output tests pending.

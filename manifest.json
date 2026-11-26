@@ -1,0 +1,52 @@
+{
+  "name": "CatPDF \u2014 Cute PDF Tools",
+  "short_name": "CatPDF",
+  "description": "19 unified tools with 44 PDF, image and conversion functions.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#ff8fab",
+  "background_color": "#fff8f4",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "productivity",
+    "utilities",
+    "business"
+  ],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Merge PDFs",
+      "short_name": "Merge",
+      "url": "./?tool=merge",
+      "description": "Combine multiple PDFs into one"
+    },
+    {
+      "name": "PDF to Image",
+      "short_name": "To Image",
+      "url": "./?tool=toimg",
+      "description": "Export PDF pages as PNG/JPG"
+    },
+    {
+      "name": "Split PDF",
+      "short_name": "Split",
+      "url": "./?tool=split",
+      "description": "Extract selected pages"
+    }
+  ]
+}
