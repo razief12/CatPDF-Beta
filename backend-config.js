@@ -1,1 +1,1 @@
-window.CATPDF_API_URL = 'https://catpdf-backed.onrender.com';
+window.CATPDF_API_URL = 'https://catpdf-beta-backed.onrender.com';
