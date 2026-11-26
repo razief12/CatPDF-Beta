@@ -389,7 +389,7 @@ body{background-image:var(--cat-pattern);background-size:180px 160px;background-
 const I18N = {
   en: {
     'hero.title':'Your PDFs, but <span>cuter</span>.',
-    'hero.sub':'34 tools in one place — view, merge, split, rotate, watermark, compress, convert, organize. Works offline after first visit.',
+    'hero.sub':'44 tools in one place — view, merge, split, rotate, watermark, compress, convert, organize. Works offline after first visit.',
     'hero.cta':'Choose a tool',
     'tool.view':'View','tool.merge':'Merge','tool.split':'Split','tool.img':'Image → PDF',
     'tool.rotate':'Rotate','tool.wm':'Cat Watermark','tool.toimg':'PDF → Image','tool.compress':'Compress',
@@ -440,6 +440,10 @@ const I18N = {
 const LANG = 'en';
 function t(k){ return (I18N[LANG][k] ?? I18N.en[k] ?? k); }
 function tf(k, vars){ return t(k).replace(/\{(\w+)\}/g, (_, v) => vars[v] ?? ''); }
+function renderOrganizeInfo(){
+  const el = document.getElementById("organizeInfo");
+  if (el) el.textContent = organizeDoc ? organizeName + ".pdf · " + orgItems.length + " " + t("unit.pages") : "";
+}
 function applyLang(){
   document.documentElement.dataset.lang = LANG;
   document.documentElement.lang = LANG;
@@ -1178,7 +1182,6 @@ if (toolParam) {
   if (card) setTimeout(() => card.click(), 100);
 }
 
-applyLang();
 
 // v4.1 UI enhancements; original PDF handlers remain unchanged.
 const v3copy={en:{eyebrow:'Your private PDF workspace',workspace:'PDF tools',empty:'No matching tools. Try another search.',private:'🔒 Files stay on your device',offline:'✓ Offline-ready after setup',search:'Search tools…',all:'All tools',organize:'Organize',convert:'Convert',edit:'Edit & optimize',busy:'Processing…'}};
@@ -1194,6 +1197,7 @@ for(const card of v3cards){const desc=document.createElement('span');desc.classN
 for(const panel of document.querySelectorAll('.panel')){const busy=document.createElement('div');busy.className='busy-indicator';busy.setAttribute('role','status');const progress=document.createElement('progress');progress.setAttribute('aria-label','Processing');const label=document.createElement('span');label.dataset.i18n='v3.busy';busy.append(progress,label);panel.querySelector('.card').append(busy);}
 function v3filter(){const q=v3search.value.trim().toLowerCase();let count=0;for(const card of v3cards){const info=v3tools[card.dataset.tool];const hay=[card.textContent,I18N.en['tool.'+card.dataset.tool],...info].join(' ').toLowerCase();card.hidden=!( (v3category==='all'||info[0]===v3category)&&hay.includes(q));if(!card.hidden)count++;}document.getElementById('emptyTools').hidden=count!==0;}
 function v3render(){v3search.placeholder=t('v3.search');v3search.setAttribute('aria-label',t('v3.search'));const filters=document.getElementById('toolFilters');filters.replaceChildren();for(const cat of ['all','organize','convert','edit']){const b=document.createElement('button');b.type='button';b.className='ctrl-btn';b.textContent=t('v3.'+cat);b.setAttribute('aria-pressed',String(cat===v3category));b.addEventListener('click',()=>{v3category=cat;v3render();});filters.append(b);}for(const card of v3cards)card.querySelector('.tool-desc').textContent=v3tools[card.dataset.tool][1];document.querySelectorAll('[data-i18n^="v3."]').forEach(el=>el.textContent=t(el.dataset.i18n));v3filter();}
+applyLang();
 v3search.addEventListener('input',v3filter);v3render();
 
 function pageSelection(value,n){const result=new Set();for(const part of value.split(',')){const m=part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);if(!m)throw Error('Enter page numbers or ranges.');const a=Number(m[1]),b=Number(m[2]||m[1]);if(a<1||b<a||b>n)throw Error('Page range is outside the document.');for(let i=a;i<=b;i++)result.add(i-1);}return result;}
