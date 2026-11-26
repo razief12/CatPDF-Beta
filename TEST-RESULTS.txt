@@ -1,2 +1,1 @@
-JavaScript syntax: PASS
-Browser interaction and PDF output: not tested.
+JavaScript and inline script syntax: PASS. Browser end-to-end cancellation, server cancellation and tool coverage: NOT VERIFIED. Main-thread synchronous tasks cannot respond until they yield. Cancel resets the entire workspace.

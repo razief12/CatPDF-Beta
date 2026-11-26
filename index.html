@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-<script src="stability.js?v=4.5.6.5.16"></script>
+<script src="stability.js?v=4.5.6.5.17"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
@@ -1170,7 +1170,7 @@ let v3category='all';
 const v3search=document.getElementById('toolSearch');
 const v3cards=[...document.querySelectorAll('.tool-card')];
 for(const card of v3cards){const desc=document.createElement('span');desc.className='tool-desc';card.append(desc);}
-for(const panel of document.querySelectorAll('.panel')){const busy=document.createElement('div');busy.className='busy-indicator';busy.setAttribute('role','status');const progress=document.createElement('progress');progress.setAttribute('aria-label','Processing');const label=document.createElement('span');label.dataset.i18n='v3.busy';busy.append(progress,label);panel.querySelector('.card').append(busy);}
+for(const panel of document.querySelectorAll('.panel')){const busy=document.createElement('div');busy.className='busy-indicator';busy.setAttribute('role','status');const progress=document.createElement('progress');progress.setAttribute('aria-label','Processing');const label=document.createElement('span');label.dataset.i18n='v3.busy';busy.append(progress,label);const stop=document.createElement('button');stop.type='button';stop.className='ctrl-btn';stop.textContent='Cancel & reset';stop.setAttribute('aria-label','Cancel processing and reset workspace');stop.onclick=()=>{if(panel.dataset.processing==='true'||panel.dataset.loading==='true')location.reload()};busy.append(stop);panel.querySelector('.card').append(busy);}
 function v3filter(){const q=v3search.value.trim().toLowerCase();let count=0;for(const card of v3cards){const info=v3tools[card.dataset.tool];const hay=[card.textContent,I18N.en['tool.'+card.dataset.tool],...info].join(' ').toLowerCase();card.hidden=!( (v3category==='all'||info[0]===v3category)&&hay.includes(q));if(!card.hidden)count++;}document.getElementById('emptyTools').hidden=count!==0;}
 function v3render(){v3search.placeholder=t('v3.search');v3search.setAttribute('aria-label',t('v3.search'));const filters=document.getElementById('toolFilters');filters.replaceChildren();for(const cat of ['all','organize','convert','edit']){const b=document.createElement('button');b.type='button';b.className='ctrl-btn';b.textContent=t('v3.'+cat);b.setAttribute('aria-pressed',String(cat===v3category));b.addEventListener('click',()=>{v3category=cat;v3render();});filters.append(b);}for(const card of v3cards)card.querySelector('.tool-desc').textContent=v3tools[card.dataset.tool][1];document.querySelectorAll('[data-i18n^="v3."]').forEach(el=>el.textContent=t(el.dataset.i18n));v3filter();}
 applyLang();
