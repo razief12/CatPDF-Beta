@@ -25,7 +25,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-<script src="stability.js"></script>
+<script src="stability.js?v=4.5.6.5.16"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
@@ -326,7 +326,7 @@ body{background-image:var(--cat-pattern);background-size:180px 160px;background-
     <section class="panel" id="panel-merge"><div class="card"><h2 data-i18n="merge.title"></h2><p class="hint" data-i18n="merge.hint"></p><div class="drop" id="dropMerge"><span class="ico">📚</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.multi.sub"></span></div><input type="file" id="fileMerge" accept="application/pdf,.pdf" multiple><div class="list" id="mergeList"></div><button class="btn" id="btnMerge" disabled data-i18n="btn.merge"></button></div></section>
     <section class="panel" id="panel-split"><div class="card"><h2 data-i18n="split.title"></h2><p class="hint" data-i18n="split.hint2"></p><div class="drop" id="dropSplit"><span class="ico">✂️</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.single.sub"></span></div><input type="file" id="fileSplit" accept="application/pdf,.pdf"><div class="list" id="splitInfo"></div><div id="splitForm" style="display:none"><div class="thumb-actions"><button class="mini" id="btnSelAll" data-i18n="btn.selectall"></button><button class="mini" id="btnSelClear" data-i18n="btn.clear"></button><span class="thumb-count" id="splitCount"></span></div><div class="thumb-grid" id="splitGrid"></div><button class="btn" id="btnSplit" data-i18n="btn.split"></button></div></div></section>
     <section class="panel" id="panel-img"><div class="card"><h2 data-i18n="img.title"></h2><p class="hint" data-i18n="img.hint"></p><div class="drop" id="dropImg"><span class="ico">🖼️</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.multi.sub"></span></div><input type="file" id="fileImg" accept="image/*" multiple><div class="list" id="imgList"></div><label class="field">Image quality <select id="imgQuality"><option value="200">Balanced (200 DPI)</option><option value="300">High quality (300 DPI)</option><option value="150">Small file (150 DPI)</option><option value="original">Original</option></select></label><button class="btn" id="btnImg" disabled data-i18n="btn.img"></button></div></section>
-    <section class="panel" id="panel-rotate"><div class="card"><h2 data-i18n="rotate.title"></h2><p class="hint" data-i18n="rotate.hint"></p><div class="drop" id="dropRotate"><span class="ico">🔄</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.single.sub"></span></div><input type="file" id="fileRotate" accept="application/pdf,.pdf"><div class="list" id="rotateInfo"></div><div id="rotateForm" style="display:none"><label class="field" for="rotateAngle" data-i18n="rotate.label"></label><select id="rotateAngle"><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select><button class="btn" id="btnRotate" data-i18n="btn.rotate"></button></div></div></section>
+    <section class="panel" id="panel-rotate"><div class="card"><h2 data-i18n="rotate.title"></h2><p class="hint" data-i18n="rotate.hint"></p><div class="drop" id="dropRotate"><span class="ico">🔄</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.single.sub"></span></div><input type="file" id="fileRotate" accept="application/pdf,.pdf"><div class="list" id="rotateInfo"></div><div id="rotateForm" style="display:none"><p class="hint">Select page thumbnails, then rotate left or right. Only changed pages will be rotated.</p><div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"><button type="button" id="rotAll">Select all</button><button type="button" id="rotNone">Clear selection</button><button type="button" id="rotLeft">↶ Left 90°</button><button type="button" id="rotRight">↷ Right 90°</button><button type="button" id="rotHalf">180°</button><button type="button" id="rotReset">Reset selected</button></div><p id="rotStatus" role="status"></p><div id="rotGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;max-height:540px;overflow:auto;padding:6px"></div><button class="btn" id="btnRotate" data-i18n="btn.rotate"></button></div></div></section>
     <section class="panel" id="panel-wm"><div class="card"><h2 data-i18n="wm.title"></h2><p class="hint" data-i18n="wm.hint"></p><div class="drop" id="dropWm"><span class="ico">🐾</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.single.sub"></span></div><input type="file" id="fileWm" accept="application/pdf,.pdf"><div class="list" id="wmInfo"></div><div id="wmForm" style="display:none"><button class="btn" id="btnWm" data-i18n="btn.wm"></button></div></div></section>
     <section class="panel" id="panel-toimg"><div class="card"><h2 data-i18n="toimg.title"></h2><p class="hint" data-i18n="toimg.hint"></p><div class="drop" id="dropToimg"><span class="ico">📸</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.single.sub"></span></div><input type="file" id="fileToimg" accept="application/pdf,.pdf"><div class="list" id="toimgInfo"></div><div id="toimgForm" style="display:none"><div class="options-row"><div class="opt"><label data-i18n="toimg.format"></label><select id="toimgFormat"><option value="png">PNG</option><option value="jpeg">JPG</option></select></div><div class="opt"><label data-i18n="toimg.scale"></label><select id="toimgScale"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2" selected>2×</option><option value="3">3×</option></select></div><div class="opt"><label data-i18n="toimg.quality"></label><input type="range" id="toimgQuality" min="40" max="100" value="90"><span id="toimgQualityVal" style="font-size:12px;color:var(--pink);font-weight:700;text-align:center">90</span></div></div><div class="btn-row"><button class="btn" id="btnToimgZip" data-i18n="btn.toimg.zip"></button><button class="btn secondary" id="btnToimgSingle" data-i18n="btn.toimg.single"></button></div><label class="field" for="toimgPageNum" data-i18n="toimg.pagenum"></label><input type="number" id="toimgPageNum" min="1" value="1"></div></div></section>
     <section class="panel" id="panel-compress"><div class="card"><h2 data-i18n="compress.title"></h2><p class="hint" data-i18n="compress.hint"></p><div class="drop" id="dropCompress"><span class="ico">🗜️</span><strong data-i18n="drop.title"></strong><span data-i18n="drop.single.sub"></span></div><input type="file" id="fileCompress" accept="application/pdf,.pdf"><div class="list" id="compressInfo"></div><div id="compressForm" style="display:none"><button class="btn" id="btnCompress" data-i18n="btn.compress"></button></div></div></section>
@@ -400,7 +400,7 @@ const I18N = {
     'merge.title':'Merge PDFs 🔗','merge.hint':'Add several PDFs, reorder, then combine them into one.',
     'split.title':'Split / Extract Pages ✂️','split.hint2':'Click pages below to select them. Perfect for pulling out a chapter or a few pages.',
     'img.title':'Image → PDF 🖼️','img.hint':'Convert JPG, PNG, or WEBP images into a PDF. Each image becomes one A4 page.',
-    'rotate.title':'Rotate PDF 🔄','rotate.hint':'Rotate every page by 90°, 180°, or 270°.',
+    'rotate.title':'Rotate PDF 🔄','rotate.hint':'Select and rotate individual pages or multiple pages with a visual preview.',
     'wm.title':'Cat Watermark 🐾','wm.hint':'Stamp a cute CatPDF watermark (text + cat face) on every page.',
     'toimg.title':'PDF → Image 📸','toimg.hint':'Export pages as PNG or JPG. Download all as a ZIP, or grab a single page.',
     'compress.title':'Compress PDF 🗜️','compress.hint':'Optimize object streams without rasterizing pages or changing metadata.',
@@ -835,38 +835,14 @@ $('#btnImg').addEventListener('click', async () => {
   finally { delete btn.closest('.panel').dataset.processing; btn.disabled = imageFiles.length === 0; btn.textContent = t('btn.img'); }
 });
 
-let rotateDoc = null, rotateName = '';
-function renderRotateInfo() {
-  if (!rotateDoc) { $('#rotateInfo').innerHTML = ''; return; }
-  $('#rotateInfo').innerHTML = `<div class="item"><span style="opacity:.7">📄</span><span class="name">${esc(rotateName)}.pdf</span><span class="pages">${rotateDoc.getPageCount()} ${t('unit.pages')}</span></div>`;
-}
-wireDrop($('#dropRotate'), $('#fileRotate'), async files => {
-  const f = files[0];
-  if (!f || !/\.pdf$/i.test(f.name)) return toast(t('toast.notpdf'), 'err');
-  $('#rotateForm').style.display = 'none';
-  try {
-    rotateDoc = await PDFLib.PDFDocument.load(await f.arrayBuffer());
-    rotateName = f.name.replace(/\.pdf$/i,'');
-    renderRotateInfo();
-    $('#rotateForm').style.display = 'block';
-    toast(tf('toast.loaded', { n: rotateDoc.getPageCount() }), 'ok');
-  } catch(e){ toast(t('toast.err'), 'err'); }
-});
-$('#btnRotate').addEventListener('click', async () => {
-  if (!rotateDoc) return toast(t('toast.needFile'), 'err');
-  const angle = parseInt($('#rotateAngle').value, 10);
-  const btn = $('#btnRotate'); btn.disabled = true; btn.closest('.panel').dataset.processing = 'true'; btn.textContent = '⏳…';
-  try {
-    const doc = await PDFLib.PDFDocument.load(await rotateDoc.save());
-    doc.getPages().forEach(page => {
-      const current = page.getRotation().angle || 0;
-      page.setRotation(PDFLib.degrees((current + angle) % 360));
-    });
-    downloadBytes(await doc.save(), `${rotateName}-rotated.pdf`);
-    toast(t('toast.rotated'), 'ok');
-  } catch(e){ toast(t('toast.err'), 'err'); }
-  finally { delete btn.closest('.panel').dataset.processing; btn.disabled = false; btn.textContent = t('btn.rotate'); }
-});
+let rotateDoc=null, rotateName='', rotPdf=null, rotGeneration=0, rotObserver=null;
+let rotSelected=new Set(), rotAngles=[], rotCards=[];
+function renderRotateInfo(){if(!rotateDoc){$('#rotateInfo').innerHTML='';return;}$('#rotateInfo').innerHTML=`<div class="item"><span class="name">${esc(rotateName)}.pdf</span><span class="pages">${rotateDoc.getPageCount()} ${t('unit.pages')}</span></div>`;}
+function rotUpdate(){rotCards.forEach((c,i)=>{const on=rotSelected.has(i);c.button.setAttribute('aria-pressed',String(on));c.button.style.borderColor=on?'#ec4899':'#94a3b8';c.button.style.background=on?'rgba(236,72,153,.13)':'';c.label.textContent=`${on?'✓ ':''}Page ${i+1} · ${rotAngles[i]}°`;c.canvas.style.transform=`rotate(${rotAngles[i]}deg)`;});$('#rotStatus').textContent=`${rotSelected.size} selected · ${rotAngles.filter(a=>a!==0).length} changed`;for(const id of ['rotLeft','rotRight','rotHalf','rotReset'])$('#'+id).disabled=!rotSelected.size;$('#btnRotate').disabled=!rotateDoc||!rotAngles.some(a=>a!==0);}
+async function rotThumb(i,token,pdf){const c=rotCards[i];if(!c||c.started)return;c.started=true;try{const page=await pdf.getPage(i+1);if(token!==rotGeneration)return;const v=page.getViewport({scale:1});const vp=page.getViewport({scale:Math.min(1,120/Math.max(v.width,v.height))});c.canvas.width=Math.ceil(vp.width);c.canvas.height=Math.ceil(vp.height);await page.render({canvasContext:c.canvas.getContext('2d'),viewport:vp}).promise;page.cleanup();}catch(e){if(token===rotGeneration)c.preview.textContent='Preview unavailable';}}
+wireDrop($('#dropRotate'),$('#fileRotate'),async files=>{const f=files[0];if(!f||!/\.pdf$/i.test(f.name))return toast(t('toast.notpdf'),'err');const token=++rotGeneration;$('#rotateForm').style.display='none';rotateDoc=null;rotObserver?.disconnect();if(rotPdf){rotPdf.destroy().catch(()=>{});rotPdf=null;}let pdf;try{const buf=await f.arrayBuffer();const doc=await PDFLib.PDFDocument.load(buf.slice(0));if(doc.getPageCount()>500)throw Error('Preview limit: 500 pages. Split the PDF first.');pdf=await loadPdfJs(buf);if(token!==rotGeneration){await pdf.destroy();return;}rotPdf=pdf;rotateDoc=doc;rotateName=f.name.replace(/\.pdf$/i,'');rotSelected=new Set();rotAngles=Array(doc.getPageCount()).fill(0);rotCards=[];const grid=$('#rotGrid');grid.replaceChildren();for(let i=0;i<rotAngles.length;i++){const button=document.createElement('button');button.type='button';button.style.cssText='border:2px solid #94a3b8;border-radius:10px;padding:6px;color:inherit;background:transparent;cursor:pointer;min-width:0';const preview=document.createElement('div');preview.style.cssText='height:130px;display:flex;align-items:center;justify-content:center;overflow:hidden';const canvas=document.createElement('canvas');canvas.style.cssText='max-width:120px;max-height:120px;transition:transform .15s';canvas.width=1;canvas.height=1;const label=document.createElement('div');preview.append(canvas);button.append(preview,label);button.onclick=()=>{if(rotSelected.has(i))rotSelected.delete(i);else rotSelected.add(i);rotUpdate();};grid.append(button);rotCards.push({button,preview,canvas,label});}renderRotateInfo();$('#rotateForm').style.display='block';rotUpdate();if('IntersectionObserver' in window){rotObserver=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){rotObserver.unobserve(e.target);rotThumb(Number(e.target.dataset.rotIndex),token,pdf);}},{root:grid,rootMargin:'150px'});rotCards.forEach((c,i)=>{c.button.dataset.rotIndex=i;rotObserver.observe(c.button);});}else{for(let i=0;i<rotCards.length&&token===rotGeneration;i++)await rotThumb(i,token,pdf);}toast(tf('toast.loaded',{n:doc.getPageCount()}),'ok');}catch(e){if(token===rotGeneration){rotateDoc=null;toast(e.message||t('toast.err'),'err');}}});
+$('#rotAll').onclick=()=>{rotSelected=new Set(rotAngles.map((_,i)=>i));rotUpdate();};$('#rotNone').onclick=()=>{rotSelected.clear();rotUpdate();};function rotApply(delta){for(const i of rotSelected)rotAngles[i]=delta===null?0:(rotAngles[i]+delta+360)%360;rotUpdate();}$('#rotLeft').onclick=()=>rotApply(-90);$('#rotRight').onclick=()=>rotApply(90);$('#rotHalf').onclick=()=>rotApply(180);$('#rotReset').onclick=()=>rotApply(null);
+$('#btnRotate').addEventListener('click',async()=>{if(!rotateDoc)return;const btn=$('#btnRotate'),source=rotateDoc,angles=rotAngles.slice(),name=rotateName;btn.disabled=true;btn.closest('.panel').dataset.processing='true';btn.textContent='⏳…';try{const doc=await PDFLib.PDFDocument.load(await source.save());angles.forEach((a,i)=>{if(a){const page=doc.getPage(i);page.setRotation(PDFLib.degrees((page.getRotation().angle+a+360)%360));}});downloadBytes(await doc.save(),`${name}-rotated.pdf`);toast(t('toast.rotated'),'ok');}catch(e){toast(e.message||t('toast.err'),'err');}finally{delete btn.closest('.panel').dataset.processing;btn.textContent=t('btn.rotate');rotUpdate();}});
 
 let wmDoc = null, wmName = '';
 function renderWmInfo() {
@@ -1226,7 +1202,7 @@ const celebration=document.createElement('div');celebration.id='downloadCelebrat
 <script src="conversion.js?v=4.5.6.4.3"></script>
 <script src="unified.js?v=4.5.6.4.3"></script>
 <script src="visual-preview.js?v=5.0.9"></script>
-<script src="interactive-edit.js?v=5.0.10"></script>
+<script src="interactive-edit.js?v=5.0.11"></script>
 <script src="organize-editor.js?v=5.0.3"></script>
 <script src="refinement.js?v=5.0.5"></script></body>
 </html>
