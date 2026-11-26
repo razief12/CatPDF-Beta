@@ -1,5 +1,5 @@
 from pathlib import Path
-import subprocess, zipfile, io, html, re, warnings, base64, math
+import os, subprocess, zipfile, io, html, re, warnings, base64, math
 from copy import copy
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.pagebreak import Break
@@ -158,10 +158,7 @@ def scanned(p):
     return not p.get_text().strip() and bool(p.get_images())
 
 def ocr_page(p):
-    scale=min(2.5, 2400/max(p.rect.width,p.rect.height))
-    png=p.get_pixmap(matrix=fitz.Matrix(scale,scale),alpha=False).tobytes('png')
-    result=subprocess.run(['tesseract','stdin','stdout','-l','eng+msa'],input=png,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=35,check=True)
-    return result.stdout.decode('utf-8',errors='replace').strip()
+    return '[Image-only page: use OCR Scanner separately to extract text.]'
 
 def convert(kind,src,out):
     if kind in ('docxpdf','xlsxpdf','pptxpdf'): office(src,out); return
@@ -244,7 +241,7 @@ def convert(kind,src,out):
         doc=Document() if kind=='pdfdocx' else None; wb=Workbook() if kind=='pdfxlsx' else None; md=[]
         if wb: wb.remove(wb.active)
         for i,p in enumerate(pdf):
-            blocks=page_blocks(p)
+            blocks=[] if scanned(p) else page_blocks(p)
             drawings=p.get_drawings(); allspans=[s for b in p.get_text('dict')['blocks'] for l in b.get('lines',[]) for s in l['spans'] if s['text'].strip()]
             if doc and i: doc.add_page_break()
             if doc and i==0:

@@ -1,3 +1,1 @@
-Python compilation and Node syntax checks: PASS (app.py, engine.py, job_runner.py, conversion.js, stability.js, sw.js).
-Local mixed two-page synthetic PDF: native text 67890 and scanned text 12345 recovered in pdftxt, pdfdocx, pdfxlsx, pdfmd, pdfsemantic. Word contains scan image. All five assertions PASS.
-Not tested: Render Docker build, live browser cancellation, full B2 regression, real scan accuracy, speed. Existing 150s worker and 180s frontend deadlines remain.
+Python compilation and node syntax checks passed for app.py, engine.py, conversion.js, smart.js, stability.js, sw.js. Local FastAPI TestClient mixed two-page PDF (text and image) returned HTTP 200 for pdftxt, pdfdocx, pdfxlsx, pdfmd, pdfhtml, pdfsemantic, pdfpptx, pdfimg. Verified text and image-only notice in TXT, one embedded image in DOCX. No live Render/browser test; other endpoints and compression not retested. Browser cancellation does not stop server thread.
