@@ -1,15 +1,18 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import asyncio, os, sys, signal
+import asyncio, os, sys, signal, logging
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from engine import convert, KINDS
+KINDS={'pdfdocx':'docx','pdfxlsx':'xlsx','pdfpptx':'pptx','pdfimg':'zip','pdftxt':'txt','pdfhtml':'html','pdfsemantic':'html','pdfmd':'md','docxpdf':'pdf','xlsxpdf':'pdf','pptxpdf':'pdf','imgpdf':'pdf','txtpdf':'pdf','htmlpdf':'pdf','jpgpng':'png','pngjpg':'jpg','webp':'webp'}
+logger=logging.getLogger("uvicorn.error")
 app=FastAPI(title='CatPDF Conversion API')
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CATPDF_ORIGINS','https://razief12.github.io,http://localhost:8000').split(','),allow_methods=['POST','GET'],allow_headers=['*'])
 slots=asyncio.Semaphore(1)
 async def run_job(request, mode, kind, src, out):
-    proc = await asyncio.create_subprocess_exec(sys.executable, str(Path(__file__).with_name('job_runner.py')), mode, kind, str(src), str(out), start_new_session=True, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+    log_path=out.parent/'worker.log'
+    with log_path.open('wb') as log:
+        proc = await asyncio.create_subprocess_exec(sys.executable, str(Path(__file__).resolve().with_name('job_runner.py')), mode, kind, str(src), str(out), start_new_session=True, stdout=log, stderr=log)
     try:
         deadline = asyncio.get_running_loop().time() + 150
         while proc.returncode is None:
@@ -19,7 +22,10 @@ async def run_job(request, mode, kind, src, out):
                 raise HTTPException(504, 'Processing timed out')
             await asyncio.sleep(.2)
         if proc.returncode != 0:
-            raise ValueError('Conversion worker failed')
+            with log_path.open('rb') as f:
+                f.seek(max(0,log_path.stat().st_size-8192))
+                logger.error('Worker %s/%s exit %s: %s',mode,kind,proc.returncode,f.read().decode('utf-8',errors='replace'))
+            raise ValueError(f'Conversion worker failed (exit {proc.returncode}). Check server logs.')
     finally:
         if proc.returncode is None:
             try: os.killpg(proc.pid, signal.SIGKILL)
@@ -27,7 +33,7 @@ async def run_job(request, mode, kind, src, out):
         await proc.wait()
 
 @app.get('/health')
-def health(): return {'status':'ok','version':'4.5.6.5.18'}
+def health(): return {'status':'ok','version':'4.5.6.5.19'}
 @app.post('/convert/{kind}')
 async def run(kind:str,request:Request,file:UploadFile=File(...)):
     if kind not in KINDS: raise HTTPException(404,'Unknown converter')
@@ -50,8 +56,7 @@ async def run(kind:str,request:Request,file:UploadFile=File(...)):
 
 @app.post('/compress/{mode}')
 async def compress(mode:str,request:Request,file:UploadFile=File(...)):
-    from compression_engine import compress_pdf, PRESETS
-    if mode not in PRESETS: raise HTTPException(400,'Unknown compression mode')
+    if mode not in ('low','medium','high'): raise HTTPException(400,'Unknown compression mode')
     data=await file.read(20*1024*1024+1)
     if not data or len(data)>20*1024*1024: raise HTTPException(413,'File limit: 20 MB')
     async with slots:

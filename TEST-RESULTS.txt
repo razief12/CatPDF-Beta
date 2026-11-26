@@ -1,1 +1,42 @@
-PASS: node syntax checks for modified JS and inline scripts; Python compilation. No live browser or Render tests.
+health {'status': 'ok', 'version': '4.5.6.5.19'}
+pdfdocx PASS 47701
+pdfxlsx PASS 17503
+pdfpptx PASS 1099781
+pdfimg PASS 1067788
+pdftxt PASS 25831
+pdfhtml PASS 290603
+pdfsemantic PASS 54491
+pdfmd PASS 14854
+docxpdf PASS 12604
+xlsxpdf PASS 12611
+imgpdf PASS 1712
+txtpdf PASS 2894
+htmlpdf PASS 3031
+jpgpng PASS 287
+pngjpg PASS 827
+webp PASS 42
+pptxpdf PASS 6771
+Worker convert/pdftxt exit 1: Traceback (most recent call last):
+  File "/opt/pyvenv/lib/python3.13/site-packages/pymupdf/__init__.py", line 3023, in __init__
+    doc = mupdf.fz_open_document(filename)
+  File "/opt/pyvenv/lib/python3.13/site-packages/pymupdf/mupdf.py", line 49157, in fz_open_document
+    return _mupdf.fz_open_document(filename)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+pymupdf.mupdf.FzErrorFormat: code=7: no objects found
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/tmp/cat12/job_runner.py", line 8, in <module>
+    convert(kind, src, out)
+    ~~~~~~~^^^^^^^^^^^^^^^^
+  File "/tmp/cat12/engine.py", line 178, in convert
+    with fitz.open(src) as pdf:
+         ~~~~~~~~~^^^^^
+  File "/opt/pyvenv/lib/python3.13/site-packages/pymupdf/__init__.py", line 3026, in __init__
+    raise FileDataError(f'Failed to open file {filename!r}.') from e
+pymupdf.FileDataError: Failed to open file '/tmp/tmpof83y7od/input.pdf'.
+
+invalid PDF 422 {'detail': 'Conversion failed: Conversion worker failed (exit 1). Check server logs.'}
+
+Local API smoke only; live Render/browser/cancellation not tested.
