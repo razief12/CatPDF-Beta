@@ -1,1 +1,1 @@
-JavaScript and inline script syntax: PASS. Browser end-to-end cancellation, server cancellation and tool coverage: NOT VERIFIED. Main-thread synchronous tasks cannot respond until they yield. Cancel resets the entire workspace.
+PASS: node syntax checks for modified JS and inline scripts; Python compilation. No live browser or Render tests.
