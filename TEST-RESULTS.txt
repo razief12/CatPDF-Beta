@@ -20,3 +20,5 @@ NOT TESTED
 - Watermark, Page Numbers, Rotate PDF panel, undo/redo restore, dedicated Delete/Duplicate/Extract/Blank panel clicks, OCR, translation.
 - Real mobile device, real browser (Safari/Firefox), real CDN pdf.js 4.10.38, download animation and meow sound.
 - Visual quality of compression (blur/sharpness) needs human review.
+
+Patch 7: Node syntax checks passed for interactive-edit.js, sw.js, stability.js and inline scripts. Browser interaction and PDF output regression not run.

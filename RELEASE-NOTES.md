@@ -14,3 +14,6 @@
 
 ## Release gate
 NOT passed. See TEST-RESULTS.txt. Beta must not be promoted to production yet.
+
+## Patch 7 (4.5.6.5.14)
+CATPDF-107: selective crop scopes, per-page margins, page navigation and reset controls. Current page default. Existing crop boxes retained for unselected pages. No backend changes. Thumbnail grid deferred.
