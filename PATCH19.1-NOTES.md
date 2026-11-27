@@ -1,0 +1,1 @@
+Patch19.1: explicit token cancellation for tracked conversion, cancellation-aware queue, deferred auth scripts, refreshed cache. Backend 4.5.6.5.27. Syntax checked only; live proxy and browser testing required. Compression cancellation unchanged.

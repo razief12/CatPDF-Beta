@@ -6,12 +6,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from kinds import KINDS, ALLOWED
 from worker import run_worker, WorkerCancelled, WorkerTimeout, WorkerFailed
-VERSION='4.5.6.5.25'; WORKER_TIMEOUT=150; MAX_BYTES=20*1024*1024
+VERSION='4.5.6.5.27'; WORKER_TIMEOUT=150; MAX_BYTES=20*1024*1024
 log=logging.getLogger('uvicorn.error'); RUNNER=str(Path(__file__).resolve().with_name('job_runner.py'))
 app=FastAPI(title='CatPDF Conversion API')
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CATPDF_ORIGINS','https://razief12.github.io,http://localhost:8000').split(','),allow_methods=['POST','GET'],allow_headers=['*'])
 slots=asyncio.Semaphore(1)
 active_progress={}
+cancelled={}
+
+def prune_cancelled():
+    now=asyncio.get_running_loop().time()
+    for key, expiry in list(cancelled.items()):
+        if expiry<=now: cancelled.pop(key,None)
+
+@app.post("/cancel/{token}")
+async def cancel(token:str):
+    if not re.fullmatch(r"[a-f0-9]{32}",token): raise HTTPException(400,"Invalid token")
+    prune_cancelled()
+    if len(cancelled)>=4096 and token not in cancelled: raise HTTPException(429,"Too many cancellations")
+    cancelled[token]=asyncio.get_running_loop().time()+300
+    return {"cancelled":True}
 
 @app.get('/progress/{token}')
 async def progress(token:str):
@@ -19,11 +33,13 @@ async def progress(token:str):
 
 
 @app.get('/health')
-def health(): return {'status':'ok','version':VERSION,'kinds':sorted(KINDS),'compress':['low','medium','high'],'progress':True}
+def health(): return {'status':'ok','version':VERSION,'kinds':sorted(KINDS),'compress':['low','medium','high'],'progress':True,'explicit_cancel':True}
 
-async def job(request, mode, kind, src, out, workdir):
+async def job(request, mode, kind, src, out, workdir, token=None):
+    async def stopped():
+        return (token is not None and token in cancelled) or await request.is_disconnected()
     try:
-        await run_worker([sys.executable,RUNNER,mode,kind,str(src),str(out)], workdir/'worker.log', WORKER_TIMEOUT, is_cancelled=request.is_disconnected)
+        await run_worker([sys.executable,RUNNER,mode,kind,str(src),str(out)], workdir/'worker.log', WORKER_TIMEOUT, is_cancelled=stopped)
     except WorkerCancelled: raise HTTPException(499,'Client disconnected')
     except WorkerTimeout: raise HTTPException(504,f'Processing timed out after {WORKER_TIMEOUT} s')
     except WorkerFailed as e:
@@ -41,14 +57,22 @@ async def run(kind:str,request:Request,file:UploadFile=File(...)):
     tracked=bool(re.fullmatch(r'[a-f0-9]{32}',token)) and token not in active_progress
     def stage(value):
         if tracked: active_progress[token]=value
+    prune_cancelled()
     stage('queued')
+    acquired=False
     try:
-        async with slots:
-            if await request.is_disconnected(): raise HTTPException(499,'Client disconnected')
+        while not acquired:
+            if (tracked and token in cancelled) or await request.is_disconnected(): raise HTTPException(499,'Cancelled')
+            try:
+                await asyncio.wait_for(slots.acquire(),0.25)
+                acquired=True
+            except asyncio.TimeoutError: pass
+        if acquired:
+            if (tracked and token in cancelled) or await request.is_disconnected(): raise HTTPException(499,'Cancelled')
             with TemporaryDirectory() as d:
                 d=Path(d); src=d/('input'+suffix); out=d/('output.'+KINDS[kind]); src.write_bytes(data); stage('processing')
                 try:
-                    await job(request,'convert',kind,src,out,d)
+                    await job(request,'convert',kind,src,out,d,token if tracked else None)
                     stage('finalizing')
                     if not out.exists() or not out.stat().st_size: raise HTTPException(422,'Conversion failed: converter produced an empty file')
                     if out.stat().st_size>100*1024*1024: raise HTTPException(422,'Conversion failed: output exceeds 100 MB')
@@ -57,6 +81,7 @@ async def run(kind:str,request:Request,file:UploadFile=File(...)):
                 except Exception:
                     log.exception('Unexpected server error: %s',kind); raise HTTPException(500,'Unexpected server error. Details are in the server log.') from None
     finally:
+        if acquired: slots.release()
         if tracked: active_progress.pop(token,None)
 
 @app.post('/compress/{mode}')
