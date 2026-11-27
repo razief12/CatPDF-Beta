@@ -1,0 +1,3 @@
+Patch17 candidate 4.5.6.5.24. Overlay onto CatPDF-Beta Patch16 only.
+PDF-to-DOCX geometry-aware path for unrotated text/table PDFs without embedded images. Other PDF-to-DOCX inputs retain Patch16 path. Other converter logic unchanged. Uses existing dependencies.
+Local BQ regression: generated editable DOCX, rendered with LibreOffice, 7 pages matching source including blank page 2. Per-page whitespace-delimited token multisets matched exactly. Visual inspection showed restored project metadata table and improved table layout; small spacing, border and symbol differences remain. Not a pixel-perfect comparison. No live Render or full converter regression test performed. Fallback logs exceptions. Version gate/cache identifiers updated together.

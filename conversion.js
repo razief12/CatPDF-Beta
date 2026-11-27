@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
 const MIME={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',html:'text/html;charset=utf-8',md:'text/markdown;charset=utf-8'};
-const EXPECTED_SERVER='4.5.6.5.23';
+const EXPECTED_SERVER='4.5.6.5.24';
 const sleep=(ms,signal)=>new Promise((res,rej)=>{const t=setTimeout(res,ms);signal?.addEventListener('abort',()=>{clearTimeout(t);rej(signal.reason instanceof Error?signal.reason:new DOMException('Cancelled','AbortError'))},{once:true})});
 // Wake-up aware health check: per-attempt timeout, tolerant JSON parsing (cold-start error pages are HTML), user cancel respected.
 async function waitForServer(api,signal,status,opt={}){const maxMs=opt.maxMs??90000,attemptMs=opt.attemptMs??8000,pauseMs=opt.pauseMs??2500,t0=Date.now();let last='';

@@ -272,6 +272,12 @@ def convert(kind,src,out):
                     parts.append('</tbody></table>')
                 parts.append('</section>')
             out.write_text('<!doctype html><html><head><meta charset="utf-8"><title>Editable PDF export</title><style>body{font:14px sans-serif;margin:24px}table{border-collapse:collapse;margin:12px 0;max-width:100%}td,th{border:1px solid #aaa;padding:5px;text-align:left}th{background:#e6edf7}section{break-after:page}section:last-child{break-after:auto}</style></head><body>'+''.join(parts)+'</body></html>',encoding='utf-8'); return
+        if kind=='pdfdocx':
+            from word_layout import export
+            try:
+                if export(pdf,out): return
+            except Exception:
+                logging.getLogger('uvicorn.error').exception('Geometry export failed; using legacy Word export')
         doc=Document() if kind=='pdfdocx' else None; wb=Workbook() if kind=='pdfxlsx' else None; md=[]
         if wb: wb.remove(wb.active)
         for i,p in enumerate(pdf):
