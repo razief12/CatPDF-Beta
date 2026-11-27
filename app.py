@@ -1,19 +1,25 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import asyncio, os, sys, logging
+import asyncio, os, sys, logging, re
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from kinds import KINDS, ALLOWED
 from worker import run_worker, WorkerCancelled, WorkerTimeout, WorkerFailed
-VERSION='4.5.6.5.24'; WORKER_TIMEOUT=150; MAX_BYTES=20*1024*1024
+VERSION='4.5.6.5.25'; WORKER_TIMEOUT=150; MAX_BYTES=20*1024*1024
 log=logging.getLogger('uvicorn.error'); RUNNER=str(Path(__file__).resolve().with_name('job_runner.py'))
 app=FastAPI(title='CatPDF Conversion API')
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CATPDF_ORIGINS','https://razief12.github.io,http://localhost:8000').split(','),allow_methods=['POST','GET'],allow_headers=['*'])
 slots=asyncio.Semaphore(1)
+active_progress={}
+
+@app.get('/progress/{token}')
+async def progress(token:str):
+    return Response(__import__('json').dumps({'stage':active_progress.get(token,'unknown')}),media_type='application/json',headers={'Cache-Control':'no-store'})
+
 
 @app.get('/health')
-def health(): return {'status':'ok','version':VERSION,'kinds':sorted(KINDS),'compress':['low','medium','high']}
+def health(): return {'status':'ok','version':VERSION,'kinds':sorted(KINDS),'compress':['low','medium','high'],'progress':True}
 
 async def job(request, mode, kind, src, out, workdir):
     try:
@@ -31,18 +37,27 @@ async def run(kind:str,request:Request,file:UploadFile=File(...)):
     if not data or len(data)>MAX_BYTES: raise HTTPException(413,'File limit: 20 MB')
     suffix=Path(file.filename or '').suffix.lower()
     if suffix not in ALLOWED.get(kind,{'.pdf'}): raise HTTPException(400,'Unsupported extension')
-    async with slots:
-        if await request.is_disconnected(): raise HTTPException(499,'Client disconnected')
-        with TemporaryDirectory() as d:
-            d=Path(d); src=d/('input'+suffix); out=d/('output.'+KINDS[kind]); src.write_bytes(data)
-            try:
-                await job(request,'convert',kind,src,out,d)
-                if not out.exists() or not out.stat().st_size: raise HTTPException(422,'Conversion failed: converter produced an empty file')
-                if out.stat().st_size>100*1024*1024: raise HTTPException(422,'Conversion failed: output exceeds 100 MB')
-                return Response(out.read_bytes(),media_type='application/octet-stream',headers={'Content-Disposition':f'attachment; filename="converted.{KINDS[kind]}"','Cache-Control':'no-store'})
-            except HTTPException: raise
-            except Exception:
-                log.exception('Unexpected server error: %s',kind); raise HTTPException(500,'Unexpected server error. Details are in the server log.') from None
+    token=request.query_params.get('progress','')
+    tracked=bool(re.fullmatch(r'[a-f0-9]{32}',token)) and token not in active_progress
+    def stage(value):
+        if tracked: active_progress[token]=value
+    stage('queued')
+    try:
+        async with slots:
+            if await request.is_disconnected(): raise HTTPException(499,'Client disconnected')
+            with TemporaryDirectory() as d:
+                d=Path(d); src=d/('input'+suffix); out=d/('output.'+KINDS[kind]); src.write_bytes(data); stage('processing')
+                try:
+                    await job(request,'convert',kind,src,out,d)
+                    stage('finalizing')
+                    if not out.exists() or not out.stat().st_size: raise HTTPException(422,'Conversion failed: converter produced an empty file')
+                    if out.stat().st_size>100*1024*1024: raise HTTPException(422,'Conversion failed: output exceeds 100 MB')
+                    return Response(out.read_bytes(),media_type='application/octet-stream',headers={'Content-Disposition':f'attachment; filename="converted.{KINDS[kind]}"','Cache-Control':'no-store'})
+                except HTTPException: raise
+                except Exception:
+                    log.exception('Unexpected server error: %s',kind); raise HTTPException(500,'Unexpected server error. Details are in the server log.') from None
+    finally:
+        if tracked: active_progress.pop(token,None)
 
 @app.post('/compress/{mode}')
 async def compress(mode:str,request:Request,file:UploadFile=File(...)):
