@@ -113,8 +113,8 @@ def fulfill_manual(session_id):
     pi=stripe_get('payment_intents/'+urllib.parse.quote(intent,safe=''))
     if pi.get('livemode') is not False or pi.get('status')!='succeeded' or pi.get('amount_received')!=expected[2] or pi.get('currency')!=expected[1]: raise ValueError('Payment mismatch')
     key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
-    data={'p_session':session_id,'p_intent':intent,'p_user':uid,'p_plan':choice.split('_')[0]}
-    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/catpdf_fulfill_manual',data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+    data={'p_session':session_id,'p_intent':intent,'p_user':uid,'p_plan':choice.split('_')[0],'p_amount':expected[2],'p_currency':expected[1]}
+    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/catpdf_fulfill_manual_v2',data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(req,timeout=15) as r: return json.load(r)
 
 @router.post('/payments/webhook')
