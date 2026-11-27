@@ -229,6 +229,7 @@ body{background-image:var(--cat-pattern);background-size:180px 160px;background-
       <span class="brand">Cat<span>PDF</span></span>
     </div>
     <div class="controls">
+      <button class="ctrl-btn" id="cpAccount" type="button">Log in</button>
       <button class="ctrl-btn install-btn" id="installBtn" title="Install CatPDF">📲 <span data-i18n="install.short">Install</span></button>
       <select class="ctrl-btn" id="themeBtn" aria-label="Color theme"><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select><button class="ctrl-btn" id="soundBtn" type="button"></button>
     </div>
@@ -1205,5 +1206,10 @@ const celebration=document.createElement('div');celebration.id='downloadCelebrat
 <script src="visual-preview.js?v=5.0.9"></script>
 <script src="interactive-edit.js?v=5.0.11"></script>
 <script src="organize-editor.js?v=5.0.3"></script>
-<script src="refinement.js?v=5.0.5"></script></body>
+<script src="refinement.js?v=5.0.5"></script><style>
+#cpAuth{width:min(420px,90vw);max-height:85vh;overflow:auto;border:1px solid #e8a7ba;border-radius:20px;padding:24px;background:Canvas;color:CanvasText;box-shadow:0 12px 50px #0003}#cpAuth::backdrop{background:#0006}#cpAuth [hidden]{display:none!important}#cpAuth input{display:block;width:100%;box-sizing:border-box;margin:10px 0;padding:12px;border:1px solid #aaa;border-radius:10px;background:Canvas;color:CanvasText}#cpAuth button{cursor:pointer;padding:9px 12px;border:1px solid #e8a7ba;border-radius:10px;background:Canvas;color:CanvasText;margin:4px 2px}#cpAuth #cpSubmit{background:#ff8fab;color:#29202a;width:100%;font-weight:bold}#cpAuthMessage{overflow-wrap:anywhere}#cpClose{float:right}#cpProfileEmail{overflow-wrap:anywhere}
+</style>
+<dialog id="cpAuth" aria-labelledby="cpAuthTitle"><button id="cpClose" type="button" aria-label="Close">✕</button><h2 id="cpAuthTitle">Log in</h2><form id="cpAuthForm"><input id="cpEmail" type="email" aria-label="Email" placeholder="Email address" autocomplete="email" required><input id="cpPassword" type="password" aria-label="Password" placeholder="Password" required><button id="cpShow" type="button">Show password</button><button id="cpSubmit" type="submit">Log in</button></form><div id="cpAuthNav"><button type="button" data-cp-mode="login">Log in</button><button type="button" data-cp-mode="register">Register</button><button type="button" data-cp-mode="forgot">Forgot password?</button></div><div id="cpProfile" hidden><p id="cpProfileEmail"></p><button id="cpLogout" type="button">Log out</button></div><p id="cpAuthMessage" role="status" aria-live="polite"></p></dialog>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script><script src="auth.js?v=19"></script>
+</body>
 </html>
