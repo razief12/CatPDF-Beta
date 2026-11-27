@@ -66,6 +66,17 @@ def checkout(body: CheckoutChoice, request: Request):
         existing = payment_rpc('catpdf_checkout_pending', {'p_user':uid})
         if existing:
             old = stripe_get('checkout/sessions/'+urllib.parse.quote(existing,safe=''))
+            meta = old.get('metadata') or {}
+            if (old.get('id') != existing or old.get('livemode') is not False
+                    or old.get('client_reference_id') != uid or meta.get('user_id') != uid):
+                raise HTTPException(503, 'Unable to verify existing checkout')
+            if old.get('status') == 'open':
+                if meta.get('choice') != body.choice:
+                    raise HTTPException(409, 'Existing checkout is for another plan; wait for expiry')
+                target = old.get('url') or ''
+                if urllib.parse.urlparse(target).netloc != 'checkout.stripe.com' or not target.startswith('https://'):
+                    raise HTTPException(503, 'Invalid sandbox session URL')
+                return {'url':target,'sandbox':True}
             if old.get('status') == 'expired':
                 payment_rpc('catpdf_checkout_release', {'p_user':uid,'p_session':existing})
         result = payment_rpc('catpdf_checkout_reserve', {'p_user':uid,'p_reservation':reservation})
@@ -121,7 +132,13 @@ def stripe_get(path):
 def payment_rpc(name, data):
     key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
     req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/'+name,data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
-    with urllib.request.urlopen(req,timeout=15) as r: return json.load(r)
+    with urllib.request.urlopen(req,timeout=15) as r:
+        raw = r.read()
+        if not raw.strip():
+            if name in ('catpdf_checkout_bind','catpdf_checkout_release','catpdf_checkout_abort','catpdf_checkout_pending'):
+                return None
+            raise ValueError('Unexpected empty RPC response')
+        return json.loads(raw)
 
 def fulfill_manual(session_id):
     if not session_id.startswith('cs_test_'): raise ValueError('Invalid session')
