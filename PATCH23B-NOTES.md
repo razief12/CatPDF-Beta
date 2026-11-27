@@ -1,0 +1,1 @@
+Sandbox-only Checkout. No fulfillment, webhook, payment history, or real payments. Server validates Supabase user and allowlisted Stripe price. Test success redirect is not proof of payment. Existing quota unchanged. Production requires webhook, idempotent fulfillment, active subscription conflict handling, rate limiting and security audit.
