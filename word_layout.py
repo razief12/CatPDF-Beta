@@ -29,13 +29,18 @@ def fmt(p, spans, x0=0, x1=None):
 def center(s):
     b=s['bbox']; return fitz.Point((b[0]+b[2])/2,(b[1]+b[3])/2)
 
+def detect(page):
+    # Ignore filled background rectangles when locating actual table borders.
+    strict=page.find_tables(strategy='lines_strict').tables
+    return strict if strict else page.find_tables().tables
+
 def export(pdf,out):
     # Keep legacy mixed/scan handling and rotated pages intact.
     if any(p.rotation or p.get_images() or any(b['type']==1 for b in p.get_text('dict')['blocks']) for p in pdf): return False
     # Keep only the first positive detection; avoid retaining every page in memory.
     first_index=None; first_page=None; first_tables=None
     for i,p in enumerate(pdf):
-        found=p.find_tables().tables
+        found=detect(p)
         if found:
             first_index,first_page,first_tables=i,p,found
             break
@@ -46,7 +51,7 @@ def export(pdf,out):
         sec.page_width=Pt(page.rect.width); sec.page_height=Pt(page.rect.height); sec.left_margin=sec.right_margin=Pt(0); sec.top_margin=sec.bottom_margin=Pt(0)
         lines=[l for b in page.get_text('dict')['blocks'] for l in b.get('lines',[]) if l.get('spans')]; spans=[s for l in lines for s in l['spans'] if s['text'].strip()]
         centered=[[(s,center(s)) for s in l['spans']] for l in lines]
-        tables=first_tables if i==first_index else ([] if i<first_index else page.find_tables().tables); drawings=page.get_drawings(); events=[(t.bbox[1],t.bbox[0],t.bbox[3],t) for t in tables]
+        tables=first_tables if i==first_index else ([] if i<first_index else detect(page)); drawings=page.get_drawings(); events=[(t.bbox[1],t.bbox[0],t.bbox[3],t) for t in tables]
         for l in lines:
             ss=[s for s in l['spans'] if not any(fitz.Rect(t.bbox).contains(center(s)) for t in tables)]
             if ss: events.append((l['bbox'][1],l['bbox'][0],l['bbox'][3],ss))
@@ -66,7 +71,7 @@ def export(pdf,out):
             for side in ('top','left','bottom','right','insideH','insideV'): xml(borders,side,val='single',sz=2,color='C5CBD3')
             for col,w in zip(table.columns,widths): col.width=Pt(w)
             for ri,row in enumerate(t.rows):
-                rr=table.rows[ri]; rr.height=Pt(row.bbox[3]-row.bbox[1]); rr.height_rule=WD_ROW_HEIGHT_RULE.AT_LEAST; xml(rr._tr.get_or_add_trPr(),'cantSplit')
+                rr=table.rows[ri]; rr.height=Pt(row.bbox[3]-row.bbox[1]); rr.height_rule=WD_ROW_HEIGHT_RULE.EXACTLY; xml(rr._tr.get_or_add_trPr(),'cantSplit')
                 for cell,w in zip(rr.cells,widths): cell.width=Pt(w)
                 for ci,rect in enumerate(row.cells):
                     if rect is None: continue
