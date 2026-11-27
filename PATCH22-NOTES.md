@@ -1,0 +1,1 @@
+Patch22: pricing modal available to guests and signed-in users; MYR/USD fixed preview prices; renewal choices are preview only; upgrade prompts on quota/premium denial; expiry display from existing quota RPC. No checkout, entitlement mutation, database or conversion changes. Backend remains 4.5.6.5.33; service worker cache 4.5.6.5.34. Browser/live testing required.
