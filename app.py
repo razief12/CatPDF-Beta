@@ -6,10 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from kinds import KINDS, ALLOWED
 from worker import run_worker, WorkerCancelled, WorkerTimeout, WorkerFailed
-VERSION='4.5.6.5.33'; WORKER_TIMEOUT=300; COMPRESSION_TIMEOUT=150; MAX_BYTES=20*1024*1024
+VERSION='4.5.6.5.35'; WORKER_TIMEOUT=300; COMPRESSION_TIMEOUT=150; MAX_BYTES=20*1024*1024
 log=logging.getLogger('uvicorn.error'); RUNNER=str(Path(__file__).resolve().with_name('job_runner.py'))
 app=FastAPI(title='CatPDF Conversion API')
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CATPDF_ORIGINS','https://razief12.github.io,http://localhost:8000').split(','),allow_methods=['POST','GET'],allow_headers=['*'])
+from payment import router as payment_router, startup_verify
+app.include_router(payment_router)
+@app.on_event('startup')
+async def verify_payment_prices():
+    asyncio.create_task(startup_verify())
+
 slots=asyncio.Semaphore(1)
 active_progress={}
 cancelled={}
