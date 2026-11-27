@@ -1,0 +1,3 @@
+# Shared, dependency-free converter table so the API process never imports the heavy engine.
+KINDS={'pdfdocx':'docx','pdfxlsx':'xlsx','pdfpptx':'pptx','pdfimg':'zip','pdftxt':'txt','pdfhtml':'html','pdfsemantic':'html','pdfmd':'md','docxpdf':'pdf','xlsxpdf':'pdf','pptxpdf':'pdf','imgpdf':'pdf','txtpdf':'pdf','htmlpdf':'pdf','jpgpng':'png','pngjpg':'jpg','webp':'webp'}
+ALLOWED={'docxpdf':{'.docx'},'xlsxpdf':{'.xlsx'},'pptxpdf':{'.pptx'},'txtpdf':{'.txt'},'htmlpdf':{'.html','.htm'},'jpgpng':{'.jpg','.jpeg'},'pngjpg':{'.png'},'webp':{'.png','.jpg','.jpeg','.webp'},'imgpdf':{'.png','.jpg','.jpeg','.webp'}}

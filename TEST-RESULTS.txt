@@ -1,1 +1,159 @@
-Python compilation and node syntax checks passed for app.py, engine.py, conversion.js, smart.js, stability.js, sw.js. Local FastAPI TestClient mixed two-page PDF (text and image) returned HTTP 200 for pdftxt, pdfdocx, pdfxlsx, pdfmd, pdfhtml, pdfsemantic, pdfpptx, pdfimg. Verified text and image-only notice in TXT, one embedded image in DOCX. No live Render/browser test; other endpoints and compression not retested. Browser cancellation does not stop server thread.
+CATPDF PATCH 16 / AUDIT - ACTUAL TEST EXECUTION LOG
+Run: 2026-11-26T23:23:49Z  | sandbox: Python 3.12.3, Node v22.23.5, LibreOffice 24.2.7.2 420(Bui
+NOT AVAILABLE IN SANDBOX (so NOT executed): PyMuPDF/fitz, WeasyPrint, FastAPI/uvicorn, Tesseract-on-Render, browser, live Render/GitHub Pages.
+
+################ [A] Patch 15 engine, executed (DOCX->PDF, PPTX->PDF) ################
+--- docxpdf (0.5s) pages=3 sizes=[(612, 792), (612, 792), (792, 612)] images=1
+PASS docx token 'Title Alpha 2026'
+PASS docx token 'HEADER-TOKEN-AAA'
+PASS docx token 'FOOTER-TOKEN-BBB'
+PASS docx token 'café'
+PASS docx token '€'
+PASS docx token 'µm'
+PASS docx token '≤'
+PASS docx token '²'
+PASS docx token '°C'
+PASS docx token 'Ω'
+PASS docx token '½'
+PASS docx token '1,234.56'
+PASS docx token '0.00012'
+PASS docx token '007'
+PASS docx token '-45.50'
+PASS docx token 'MERGED-HDR'
+PASS docx token 'R1C0'
+PASS docx token 'R2C2'
+PASS docx token 'PAGE-TWO-TOKEN'
+PASS docx token 'LANDSCAPE-SECTION-TOKEN'
+PASS docx page count (expect 3) | 3
+PASS docx page1 Letter 612x792 | (612, 792)
+PASS docx last page landscape 792x612 | (792, 612)
+PASS docx image count==1 | 1
+--- pptxpdf (0.5s) pages=3 sizes=[(960, 540), (960, 540), (960, 540)] images=1
+PASS pptx token 'SLIDE-1-TITLE'
+PASS pptx token 'SLIDE-2-TITLE'
+PASS pptx token 'SLIDE-3-TITLE'
+PASS pptx token '1,234.56'
+PASS pptx token 'TBL-A'
+PASS pptx token 'TBL-D'
+PASS pptx token '€'
+PASS pptx slide count==3 | 3
+PASS pptx size 960x540 | (960, 540)
+PASS pptx image>=1 | 1
+PASS pptx notes NOT in output (LO default; informational)
+
+################ [B] XLSX differential: Patch 15 office() vs raw LibreOffice ################
+===== t.xlsx: pages raw=2 repo=1
+stale               2
+stale              2
+  token SHAPE-TEXTBOX-TOKEN    raw=False repo=False
+  token CHART-TITLE-XYZ        raw=True  repo=True 
+  token MERGED-XL              raw=True  repo=True 
+  token HIDDEN-SHEET-TOKEN     raw=False repo=False
+===== t_shape.xlsx: pages raw=2 repo=1
+stale               5
+stale              2
+  token SHAPE-TEXTBOX-TOKEN    raw=True  repo=False
+  token CHART-TITLE-XYZ        raw=True  repo=True 
+  token MERGED-XL              raw=True  repo=True 
+  token HIDDEN-SHEET-TOKEN     raw=False repo=False
+
+################ [C] XLSX differential: PATCH 16 office() vs raw LibreOffice ################
+===== t.xlsx: pages raw=2 repo=2
+stale               2
+stale               2
+  token SHAPE-TEXTBOX-TOKEN    raw=False repo=False
+  token CHART-TITLE-XYZ        raw=True  repo=True 
+  token MERGED-XL              raw=True  repo=True 
+  token HIDDEN-SHEET-TOKEN     raw=False repo=False
+===== t_shape.xlsx: pages raw=2 repo=2
+stale               5
+stale               5
+  token SHAPE-TEXTBOX-TOKEN    raw=True  repo=True 
+  token CHART-TITLE-XYZ        raw=True  repo=True 
+  token MERGED-XL              raw=True  repo=True 
+  token HIDDEN-SHEET-TOKEN     raw=False repo=False
+
+################ [D] Drawing-free workbook, cached values (src: stale=5,sum=10) ################
+run_import.py -> k       v | a           10 | stale        2 | sum         10
+run_import16.py -> k       v | a           10 | stale        5 | sum         10
+
+################ [E] Image converters (server endpoints; UI does not call them) ################
+PASS jpgpng pixel-identical decode | maxerr=0.0
+INFO pngjpg q95 maxerr=147 meanerr=3.09 (lossy by nature)
+PASS pngjpg transparent->white (documented flatten) | (255, 255, 255)
+PASS webp lossless RGBA: alpha identical and every visible pixel identical (hidden RGB under alpha=0 may differ - libwebp behaviour)
+PASS webp lossless RGB identical
+INFO jpgpng EXIF-rotated size (200, 100)->(100, 200); dpi kept=None
+FAIL jpgpng preserves DPI metadata | None
+FAIL imgpdf A4@300dpi PNG -> A4 page (595x842pt) | got 2480x3508pt = 875x1238mm
+INFO imgpdf embedded image stream: 1 0 image 800 600 rgb 3 8 jpeg no
+FAIL imgpdf lossless embedding of PNG source | extracted .jpg maxerr=156 meanerr=3.23
+INFO 24MP jpg rejected (explicit, not silent): Image size (24000000 pixels) exceeds limit of 20000000 pixels, could be decompression bomb
+
+################ [F] Font substitution (Dockerfile-equivalent fontconfig) ################
+Calibri docx, sandbox fonts (Carlito present): pages=7 fonts=['BAAAAA+Carlito-Regular']
+Calibri docx, Dockerfile-like fonts          : pages=7 fonts=['BAAAAA+DejaVuSans']
+
+################ [G] worker.py supervisor (real processes) ################
+PASS clean exit returns normally
+PASS failure -> exact reason surfaced (not "check server logs") | Image-only page detected; OCR required to avoid silent data loss
+PASS server paths scrubbed from user-facing reason | cannot open <path> now
+PASS TimeoutExpired reason extracted | Command '['tesseract']' timed out after 35 seconds
+PASS hard timeout enforced | 2.0s
+PASS grandchild (like soffice.bin) killed on timeout | pid 2925
+PASS client-cancel stops job promptly (not 60s timeout) | 1.0s
+PASS grandchild killed on cancel
+PASS next job starts immediately after a cancel | 0.01s
+PASS OOM-style SIGKILL reported as failure with safe message | The converter stopped unexpectedly. Details are in the server log.
+
+SUMMARY: 10/10 passed
+
+################ [H] app.py glue -> job_runner -> engine -> LibreOffice (FastAPI stubbed) ################
+PASS /health reports version + kinds | 4.5.6.5.23
+PASS docxpdf end-to-end via worker subprocess | 1.0s
+PASS content check on API output (tokens)
+PASS xlsxpdf via API keeps text box + cached value
+PASS corrupt input -> 422 with real reason | Conversion failed: File is not a zip file
+PASS PDF-path error surfaced with specific reason | Conversion failed: module 'fitz' has no attribute 'open'
+PASS unknown kind 404
+PASS wrong extension 400
+PASS empty file 413
+PASS disconnected client: job not started (499)
+PASS queued request abandoned by client is skipped; first job unaffected | Response/499
+SUMMARY: 11/11 passed
+
+################ [I] Patch 15 frontend gate, verbatim logic reproduced ################
+Patch 15 gate, server returns HTML 503 during spin-up ->  user sees: "Unexpected token '<', "<html><bod"... is not valid JSON"
+Patch 15 gate, healthy backend one build behind  ->  user sees: "Conversion server update pending. Please retry after deployment." (conversion blocked)
+
+################ [J] Patch 16 frontend helpers vs simulated Render ################
+PASS warm server: immediate success
+PASS cold start: retries through HTML 503 pages then succeeds | hits=7, 3.0s
+PASS cold start: user sees wake-up progress | Server is waking up… 0 s (HTTP 503). Free hosting can take a minute. You can cancel.
+PASS non-JSON 200 -> clear timeout message, no JSON SyntaxError | The conversion server did not respond within 1 s (unexpected response). Free hosting may b
+PASS hung server: bounded by maxMs, not forever | 1506ms
+PASS user Cancel during cold start aborts promptly | 404ms
+PASS unreachable server: clear message | The conversion server did not respond within 1 s (unreachable). Free hosting may
+PASS older backend (no kinds list): NOT blocked, warns | Note: server version 4.5.6.5.20 differs from app version 4.5.6.5.23.
+PASS matching backend: ok, no warning
+PASS backend genuinely missing converter: blocked with actionable message
+PASS HTTP 422 JSON detail shown verbatim
+PASS HTTP 502 HTML page -> status + restart hint
+PASS network TypeError -> CORS/restart hint
+
+SUMMARY: 13/13 passed
+
+################ [K] diagnose.html ################
+PASS multipart upload sent with file field | pdftxt,pdfdocx,pdfdocx,pdfdocx,pdftxt
+PASS text fixture: valid PDF, 1 page, tokens extractable by poppler
+PASS scan fixture: valid PDF, 1 page, 1 image, NO text layer
+PASS mixed fixture: 2 pages, text on p1, image on p2
+PASS diag: TXT check PASSes against real poppler extraction
+PASS diag: reports FAIL (not PASS) when server returns HTTP 422 | HTTP 422, 9 ms {"detail":"mock: not implemented"}
+PASS diag: health timing + version captured
+
+SUMMARY: 7/7 passed
+
+################ [L] Docker-side PDF harness: selftest only ################
+SELFTEST OK: checkers accept good output, reject bad output; fixture written to tests/fixture.pdf
+NOT RUN: engine cannot import here -> ModuleNotFoundError("No module named 'fitz'")
