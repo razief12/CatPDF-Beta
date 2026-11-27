@@ -1,5 +1,5 @@
 """Sandbox-only price validation. Sandbox checkout preview; fulfillment is not implemented."""
-import os, json, urllib.request, urllib.parse, base64, asyncio, uuid
+import os, json, urllib.request, urllib.parse, urllib.error, base64, asyncio, uuid
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 router = APIRouter()
@@ -73,22 +73,31 @@ def checkout(body: CheckoutChoice, request: Request):
     except HTTPException: raise
     except Exception: raise HTTPException(503,'Unable to verify purchase eligibility') from None
     auth = 'Basic '+base64.b64encode((key+':').encode()).decode()
+    submitted = False
     try:
         req=urllib.request.Request('https://api.stripe.com/v1/prices/'+expected[0],headers={'Authorization':auth})
         with urllib.request.urlopen(req,timeout=10) as r: price=json.load(r)
         if not validate_price(price,expected): raise HTTPException(503,'Price verification failed')
         site='https://razief12.github.io/CatPDF-Beta/'
-        data={'mode':'subscription' if expected[3] else 'payment','line_items[0][price]':expected[0],'line_items[0][quantity]':'1','success_url':site+'?payment=test_success','cancel_url':site+'?payment=cancelled','client_reference_id':uid,'metadata[user_id]':uid,'metadata[choice]':body.choice,'metadata[reservation]':reservation,'payment_method_types[0]':'card','expires_at':str(int(time.time())+1860)}
+        data={'mode':'subscription' if expected[3] else 'payment','line_items[0][price]':expected[0],'line_items[0][quantity]':'1','success_url':site+'?payment=test_success','cancel_url':site+'?payment=cancelled','client_reference_id':uid,'metadata[user_id]':uid,'metadata[choice]':body.choice,'metadata[reservation]':reservation,'allowed_payment_method_types[0]':'card','expires_at':str(int(time.time())+1860)}
         if expected[3]:
             data.update({'subscription_data[metadata][user_id]':uid,'subscription_data[metadata][choice]':body.choice})
         req=urllib.request.Request('https://api.stripe.com/v1/checkout/sessions',data=urllib.parse.urlencode(data).encode(),headers={'Authorization':auth,'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':reservation},method='POST')
+        submitted = True
         with urllib.request.urlopen(req,timeout=15) as r: session=json.load(r)
         target=session.get('url','')
         if session.get('livemode') is not False or urllib.parse.urlparse(target).netloc!='checkout.stripe.com' or not target.startswith('https://'): raise HTTPException(503,'Invalid sandbox session')
         payment_rpc('catpdf_checkout_bind', {'p_user':uid,'p_reservation':reservation,'p_session':session['id']})
         return {'url':target,'sandbox':True}
-    except HTTPException: raise
-    except Exception: raise HTTPException(502,'Unable to create sandbox checkout') from None
+    except Exception as exc:
+        # Only release when no creation request was sent, or Stripe explicitly rejected it.
+        if not submitted or (isinstance(exc, urllib.error.HTTPError) and exc.code == 400):
+            try:
+                payment_rpc('catpdf_checkout_abort', {'p_user':uid,'p_reservation':reservation})
+            except Exception:
+                print('CatPDF checkout reservation cleanup failed', flush=True)
+        if isinstance(exc, HTTPException): raise
+        raise HTTPException(502,'Unable to create sandbox checkout') from None
 
 # Patch23C: one-off fulfillment only. Recurring checkout is paused until invoice lifecycle support.
 import hashlib, hmac, time
