@@ -1,12 +1,12 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import asyncio, os, sys, logging, re
+import asyncio, os, sys, logging, re, time
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from kinds import KINDS, ALLOWED
 from worker import run_worker, WorkerCancelled, WorkerTimeout, WorkerFailed
-VERSION='4.5.6.5.27'; WORKER_TIMEOUT=150; MAX_BYTES=20*1024*1024
+VERSION='4.5.6.5.28'; WORKER_TIMEOUT=300; COMPRESSION_TIMEOUT=150; MAX_BYTES=20*1024*1024
 log=logging.getLogger('uvicorn.error'); RUNNER=str(Path(__file__).resolve().with_name('job_runner.py'))
 app=FastAPI(title='CatPDF Conversion API')
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CATPDF_ORIGINS','https://razief12.github.io,http://localhost:8000').split(','),allow_methods=['POST','GET'],allow_headers=['*'])
@@ -38,13 +38,22 @@ def health(): return {'status':'ok','version':VERSION,'kinds':sorted(KINDS),'com
 async def job(request, mode, kind, src, out, workdir, token=None):
     async def stopped():
         return (token is not None and token in cancelled) or await request.is_disconnected()
+    started=time.monotonic()
+    timeout=WORKER_TIMEOUT if mode=='convert' else COMPRESSION_TIMEOUT
+    log.info("Job start %s/%s bytes=%s",mode,kind,src.stat().st_size)
     try:
-        await run_worker([sys.executable,RUNNER,mode,kind,str(src),str(out)], workdir/'worker.log', WORKER_TIMEOUT, is_cancelled=stopped)
-    except WorkerCancelled: raise HTTPException(499,'Client disconnected')
-    except WorkerTimeout: raise HTTPException(504,f'Processing timed out after {WORKER_TIMEOUT} s')
+        await run_worker([sys.executable,RUNNER,mode,kind,str(src),str(out)], workdir/'worker.log', timeout, is_cancelled=stopped)
+    except WorkerCancelled:
+        log.info('Job cancelled %s/%s after %.1fs',mode,kind,time.monotonic()-started)
+        raise HTTPException(499,'Client disconnected')
+    except WorkerTimeout:
+        log.warning('Job timeout %s/%s after %.1fs',mode,kind,time.monotonic()-started)
+        raise HTTPException(504,f'Processing timed out after {timeout} s')
     except WorkerFailed as e:
         log.error('Worker %s/%s failed: %s',mode,kind,e.tail[-4000:])
         raise HTTPException(422,'Conversion failed: '+e.reason) from None
+    else:
+        log.info('Job completed %s/%s after %.1fs',mode,kind,time.monotonic()-started)
 
 @app.post('/convert/{kind}')
 async def run(kind:str,request:Request,file:UploadFile=File(...)):
@@ -59,6 +68,8 @@ async def run(kind:str,request:Request,file:UploadFile=File(...)):
         if tracked: active_progress[token]=value
     prune_cancelled()
     stage('queued')
+    queued_at=time.monotonic()
+    log.info('Conversion queued kind=%s bytes=%s',kind,len(data))
     acquired=False
     try:
         while not acquired:
@@ -68,6 +79,7 @@ async def run(kind:str,request:Request,file:UploadFile=File(...)):
                 acquired=True
             except asyncio.TimeoutError: pass
         if acquired:
+            log.info('Conversion acquired worker kind=%s wait=%.1fs',kind,time.monotonic()-queued_at)
             if (tracked and token in cancelled) or await request.is_disconnected(): raise HTTPException(499,'Cancelled')
             with TemporaryDirectory() as d:
                 d=Path(d); src=d/('input'+suffix); out=d/('output.'+KINDS[kind]); src.write_bytes(data); stage('processing')

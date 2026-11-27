@@ -32,13 +32,21 @@ def center(s):
 def export(pdf,out):
     # Keep legacy mixed/scan handling and rotated pages intact.
     if any(p.rotation or p.get_images() or any(b['type']==1 for b in p.get_text('dict')['blocks']) for p in pdf): return False
-    if not any(p.find_tables().tables for p in pdf): return False
+    # Keep only the first positive detection; avoid retaining every page in memory.
+    first_index=None; first_page=None; first_tables=None
+    for i,p in enumerate(pdf):
+        found=p.find_tables().tables
+        if found:
+            first_index,first_page,first_tables=i,p,found
+            break
+    if first_index is None: return False
     doc=Document(); normal=doc.styles['Normal']; normal.font.size=Pt(1); normal.paragraph_format.space_after=Pt(0); normal.paragraph_format.space_before=Pt(0); normal.paragraph_format.line_spacing=Pt(1)
     for i,page in enumerate(pdf):
         sec=doc.sections[0] if i==0 else doc.add_section(WD_SECTION.NEW_PAGE)
         sec.page_width=Pt(page.rect.width); sec.page_height=Pt(page.rect.height); sec.left_margin=sec.right_margin=Pt(0); sec.top_margin=sec.bottom_margin=Pt(0)
         lines=[l for b in page.get_text('dict')['blocks'] for l in b.get('lines',[]) if l.get('spans')]; spans=[s for l in lines for s in l['spans'] if s['text'].strip()]
-        tables=page.find_tables().tables; drawings=page.get_drawings(); events=[(t.bbox[1],t.bbox[0],t.bbox[3],t) for t in tables]
+        centered=[[(s,center(s)) for s in l['spans']] for l in lines]
+        tables=first_tables if i==first_index else ([] if i<first_index else page.find_tables().tables); drawings=page.get_drawings(); events=[(t.bbox[1],t.bbox[0],t.bbox[3],t) for t in tables]
         for l in lines:
             ss=[s for s in l['spans'] if not any(fitz.Rect(t.bbox).contains(center(s)) for t in tables)]
             if ss: events.append((l['bbox'][1],l['bbox'][0],l['bbox'][3],ss))
@@ -64,15 +72,15 @@ def export(pdf,out):
                     if rect is None: continue
                     end=ci
                     while end+1<n and row.cells[end+1] is None and rect[2]>=edges[end+2]-2: end+=1
-                    cell=table.cell(ri,ci)
-                    if end>ci: cell=cell.merge(table.cell(ri,end))
+                    cell=rr.cells[ci]
+                    if end>ci: cell=cell.merge(rr.cells[end])
                     cell.vertical_alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER; r=fitz.Rect(rect); cp=cell._tc.get_or_add_tcPr()
                     for d in drawings:
                         if d.get('fill') is not None and d.get('fill_opacity',1)>=.95 and any(it[0]=='re' and (fitz.Rect(it[1])&r).get_area()>=.85*r.get_area() for it in d['items']):
                             fill=''.join(f'{round(c*255):02X}' for c in d['fill'][:3]); old=cp.find(qn('w:shd'))
                             if old is not None: cp.remove(old)
                             xml(cp,'shd',fill=fill)
-                    cell_lines=[[s for s in l['spans'] if r.contains(center(s))] for l in lines]; cell_lines=[ss for ss in cell_lines if ss]
+                    cell_lines=[[s for s,pt in line if r.contains(pt)] for line in centered]; cell_lines=[ss for ss in cell_lines if ss]
                     for j,ss in enumerate(cell_lines):
                         p=cell.paragraphs[0] if j==0 else cell.add_paragraph(); fmt(p,ss,r.x0,r.x1)
                         if p.alignment is None: p.paragraph_format.left_indent=Pt(max(0,min(s['bbox'][0] for s in ss)-r.x0))
