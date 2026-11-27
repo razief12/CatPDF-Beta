@@ -61,19 +61,31 @@ def checkout(body: CheckoutChoice, request: Request):
         with urllib.request.urlopen(req, timeout=10) as r: user=json.load(r)
         uid=str(uuid.UUID(user['id']))
     except Exception: raise HTTPException(401, 'Unable to verify account') from None
+    reservation = str(uuid.uuid4())
+    try:
+        existing = payment_rpc('catpdf_checkout_pending', {'p_user':uid})
+        if existing:
+            old = stripe_get('checkout/sessions/'+urllib.parse.quote(existing,safe=''))
+            if old.get('status') == 'expired':
+                payment_rpc('catpdf_checkout_release', {'p_user':uid,'p_session':existing})
+        result = payment_rpc('catpdf_checkout_reserve', {'p_user':uid,'p_reservation':reservation})
+        if not result.get('allowed'): raise HTTPException(409,result.get('reason','Checkout blocked'))
+    except HTTPException: raise
+    except Exception: raise HTTPException(503,'Unable to verify purchase eligibility') from None
     auth = 'Basic '+base64.b64encode((key+':').encode()).decode()
     try:
         req=urllib.request.Request('https://api.stripe.com/v1/prices/'+expected[0],headers={'Authorization':auth})
         with urllib.request.urlopen(req,timeout=10) as r: price=json.load(r)
         if not validate_price(price,expected): raise HTTPException(503,'Price verification failed')
         site='https://razief12.github.io/CatPDF-Beta/'
-        data={'mode':'subscription' if expected[3] else 'payment','line_items[0][price]':expected[0],'line_items[0][quantity]':'1','success_url':site+'?payment=test_success','cancel_url':site+'?payment=cancelled','client_reference_id':uid,'metadata[user_id]':uid,'metadata[choice]':body.choice}
+        data={'mode':'subscription' if expected[3] else 'payment','line_items[0][price]':expected[0],'line_items[0][quantity]':'1','success_url':site+'?payment=test_success','cancel_url':site+'?payment=cancelled','client_reference_id':uid,'metadata[user_id]':uid,'metadata[choice]':body.choice,'metadata[reservation]':reservation,'payment_method_types[0]':'card','expires_at':str(int(time.time())+1860)}
         if expected[3]:
             data.update({'subscription_data[metadata][user_id]':uid,'subscription_data[metadata][choice]':body.choice})
-        req=urllib.request.Request('https://api.stripe.com/v1/checkout/sessions',data=urllib.parse.urlencode(data).encode(),headers={'Authorization':auth,'Content-Type':'application/x-www-form-urlencoded'},method='POST')
+        req=urllib.request.Request('https://api.stripe.com/v1/checkout/sessions',data=urllib.parse.urlencode(data).encode(),headers={'Authorization':auth,'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':reservation},method='POST')
         with urllib.request.urlopen(req,timeout=15) as r: session=json.load(r)
         target=session.get('url','')
         if session.get('livemode') is not False or urllib.parse.urlparse(target).netloc!='checkout.stripe.com' or not target.startswith('https://'): raise HTTPException(503,'Invalid sandbox session')
+        payment_rpc('catpdf_checkout_bind', {'p_user':uid,'p_reservation':reservation,'p_session':session['id']})
         return {'url':target,'sandbox':True}
     except HTTPException: raise
     except Exception: raise HTTPException(502,'Unable to create sandbox checkout') from None
@@ -97,6 +109,11 @@ def stripe_get(path):
     auth='Basic '+base64.b64encode((key+':').encode()).decode()
     with urllib.request.urlopen(urllib.request.Request('https://api.stripe.com/v1/'+path,headers={'Authorization':auth}),timeout=15) as r: return json.load(r)
 
+def payment_rpc(name, data):
+    key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
+    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/'+name,data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+    with urllib.request.urlopen(req,timeout=15) as r: return json.load(r)
+
 def fulfill_manual(session_id):
     if not session_id.startswith('cs_test_'): raise ValueError('Invalid session')
     s=stripe_get('checkout/sessions/'+urllib.parse.quote(session_id,safe=''))
@@ -113,8 +130,8 @@ def fulfill_manual(session_id):
     pi=stripe_get('payment_intents/'+urllib.parse.quote(intent,safe=''))
     if pi.get('livemode') is not False or pi.get('status')!='succeeded' or pi.get('amount_received')!=expected[2] or pi.get('currency')!=expected[1]: raise ValueError('Payment mismatch')
     key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
-    data={'p_session':session_id,'p_intent':intent,'p_user':uid,'p_plan':choice.split('_')[0],'p_amount':expected[2],'p_currency':expected[1]}
-    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/catpdf_fulfill_manual_v2',data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+    data={'p_session':session_id,'p_intent':intent,'p_user':uid,'p_plan':choice.split('_')[0],'p_amount':expected[2],'p_currency':expected[1],'p_reservation':meta.get('reservation')}
+    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/catpdf_fulfill_manual_v3',data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(req,timeout=15) as r: return json.load(r)
 
 @router.post('/payments/webhook')
