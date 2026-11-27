@@ -1,0 +1,1 @@
+Patch20: dashboard, profile display name via Supabase user metadata, password reset link, notification and quota placeholders, MYR/USD pricing preview. No billing, quota enforcement, usage history or notification persistence yet. No converter/backend changes. Translation remains disabled. Browser and live Supabase testing required.
