@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from kinds import KINDS, ALLOWED
 from worker import run_worker, WorkerCancelled, WorkerTimeout, WorkerFailed
-VERSION='4.5.6.5.29'; WORKER_TIMEOUT=300; COMPRESSION_TIMEOUT=150; MAX_BYTES=20*1024*1024
+VERSION='4.5.6.5.33'; WORKER_TIMEOUT=300; COMPRESSION_TIMEOUT=150; MAX_BYTES=20*1024*1024
 log=logging.getLogger('uvicorn.error'); RUNNER=str(Path(__file__).resolve().with_name('job_runner.py'))
 app=FastAPI(title='CatPDF Conversion API')
 app.add_middleware(CORSMiddleware,allow_origins=os.getenv('CATPDF_ORIGINS','https://razief12.github.io,http://localhost:8000').split(','),allow_methods=['POST','GET'],allow_headers=['*'])
@@ -55,9 +55,25 @@ async def job(request, mode, kind, src, out, workdir, token=None):
     else:
         log.info('Job completed %s/%s after %.1fs',mode,kind,time.monotonic()-started)
 
+async def check_access(request, kind):
+    import urllib.request, urllib.error, json
+    token=request.headers.get('authorization','')
+    if not token:
+        if kind in ('pdfdocx','pdfxlsx','pdfpptx'): raise HTTPException(403,'Premium account required')
+        return
+    if not token.startswith('Bearer '): raise HTTPException(401,'Invalid authorization')
+    def call():
+        req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/catpdf_quota',data=json.dumps({'p_consume':False,'p_tool':kind,'p_device':request.headers.get('x-catpdf-device'),'p_activate':False}).encode(),headers={'apikey':'sb_publishable_y9pVKZ47UfWibxYaoOcoAg_3mlqpDPs','Authorization':token,'Content-Type':'application/json'},method='POST')
+        with urllib.request.urlopen(req,timeout=10) as r: return json.load(r)
+    try: result=await asyncio.to_thread(call)
+    except urllib.error.HTTPError as e: raise HTTPException(401 if e.code in (401,403) else 503,'Account quota verification failed') from None
+    except Exception: raise HTTPException(503,'Quota service unavailable') from None
+    if not result.get('allowed'): raise HTTPException(403,result.get('reason','Access denied'))
+
 @app.post('/convert/{kind}')
 async def run(kind:str,request:Request,file:UploadFile=File(...)):
     if kind not in KINDS: raise HTTPException(404,'Unknown converter')
+    await check_access(request,kind)
     data=await file.read(MAX_BYTES+1)
     if not data or len(data)>MAX_BYTES: raise HTTPException(413,'File limit: 20 MB')
     suffix=Path(file.filename or '').suffix.lower()
