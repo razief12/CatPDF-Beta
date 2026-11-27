@@ -1,0 +1,1 @@
+Temporarily disable all three translation tools. HTML templates retain original markup but are inert; unified navigation excludes the translation group. Restore templates and group to re-enable. Worker source retained; no longer precached. Backend unchanged (4.5.6.5.29); frontend cache 4.5.6.5.30. Existing offline clients require service worker update.
