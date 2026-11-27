@@ -50,6 +50,8 @@ class CheckoutChoice(BaseModel):
 def checkout(body: CheckoutChoice, request: Request):
     expected = PRICES.get(body.choice)
     if expected is None: raise HTTPException(400, 'Unknown plan')
+    if expected[3]: raise HTTPException(503, 'Automatic renewal is temporarily unavailable')
+    if not os.environ.get('STRIPE_WEBHOOK_SECRET') or not os.environ.get('SUPABASE_SERVICE_ROLE_KEY'): raise HTTPException(503, 'Payment fulfillment is not configured')
     key = os.environ.get('STRIPE_SECRET_KEY', '')
     if not key.startswith('sk_test_'): raise HTTPException(503, 'Sandbox unavailable')
     token = request.headers.get('authorization', '')
@@ -75,3 +77,60 @@ def checkout(body: CheckoutChoice, request: Request):
         return {'url':target,'sandbox':True}
     except HTTPException: raise
     except Exception: raise HTTPException(502,'Unable to create sandbox checkout') from None
+
+# Patch23C: one-off fulfillment only. Recurring checkout is paused until invoice lifecycle support.
+import hashlib, hmac, time
+
+def verify_signature(raw, header, secret, now=None):
+    parts = [p.split('=', 1) for p in header.split(',') if '=' in p]
+    timestamps = [v for k,v in parts if k == 't']
+    if len(timestamps) != 1: return False
+    try: timestamp = int(timestamps[0])
+    except ValueError: return False
+    if abs((time.time() if now is None else now)-timestamp)>300: return False
+    digest=hmac.new(secret.encode(), timestamps[0].encode()+b'.'+raw, hashlib.sha256).hexdigest()
+    return any(hmac.compare_digest(digest,v) for k,v in parts if k=='v1')
+
+def stripe_get(path):
+    key=os.environ['STRIPE_SECRET_KEY']
+    if not key.startswith('sk_test_'): raise ValueError('Sandbox required')
+    auth='Basic '+base64.b64encode((key+':').encode()).decode()
+    with urllib.request.urlopen(urllib.request.Request('https://api.stripe.com/v1/'+path,headers={'Authorization':auth}),timeout=15) as r: return json.load(r)
+
+def fulfill_manual(session_id):
+    if not session_id.startswith('cs_test_'): raise ValueError('Invalid session')
+    s=stripe_get('checkout/sessions/'+urllib.parse.quote(session_id,safe=''))
+    if s.get('livemode') is not False or s.get('mode')!='payment' or s.get('status')!='complete' or s.get('payment_status')!='paid': raise ValueError('Unpaid session')
+    meta=s.get('metadata') or {}; choice=meta.get('choice'); expected=PRICES.get(choice)
+    if not expected or expected[3]: raise ValueError('Invalid choice')
+    uid=str(uuid.UUID(meta['user_id']))
+    if s.get('client_reference_id')!=uid or s.get('currency')!=expected[1] or s.get('amount_total')!=expected[2]: raise ValueError('Session mismatch')
+    lines=stripe_get('checkout/sessions/'+urllib.parse.quote(session_id,safe='')+'/line_items')
+    items=lines.get('data',[])
+    if lines.get('has_more') or len(items)!=1 or items[0].get('quantity')!=1 or (items[0].get('price') or {}).get('id')!=expected[0]: raise ValueError('Line item mismatch')
+    intent=s.get('payment_intent')
+    if not isinstance(intent,str) or not intent.startswith('pi_'): raise ValueError('Missing payment intent')
+    pi=stripe_get('payment_intents/'+urllib.parse.quote(intent,safe=''))
+    if pi.get('livemode') is not False or pi.get('status')!='succeeded' or pi.get('amount_received')!=expected[2] or pi.get('currency')!=expected[1]: raise ValueError('Payment mismatch')
+    key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
+    data={'p_session':session_id,'p_intent':intent,'p_user':uid,'p_plan':choice.split('_')[0]}
+    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/rpc/catpdf_fulfill_manual',data=json.dumps(data).encode(),headers={'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+    with urllib.request.urlopen(req,timeout=15) as r: return json.load(r)
+
+@router.post('/payments/webhook')
+async def webhook(request: Request):
+    secret=os.environ.get('STRIPE_WEBHOOK_SECRET','')
+    if not secret.startswith('whsec_') or not os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or not os.environ.get('STRIPE_SECRET_KEY','').startswith('sk_test_'): raise HTTPException(503,'Fulfillment not configured')
+    raw=await request.body()
+    if len(raw)>1024*1024 or not verify_signature(raw,request.headers.get('stripe-signature',''),secret): raise HTTPException(400,'Invalid signature')
+    try: event=json.loads(raw)
+    except ValueError: raise HTTPException(400,'Invalid event') from None
+    if event.get('livemode') is not False: raise HTTPException(400,'Sandbox required')
+    if event.get('type') not in ('checkout.session.completed','checkout.session.async_payment_succeeded'): return {'received':True}
+    s=event['data']['object']
+    if s.get('mode')!='payment' or s.get('payment_status')!='paid': return {'received':True}
+    try: await asyncio.to_thread(fulfill_manual,s['id'])
+    except Exception as e:
+        print('CatPDF fulfillment failed:',type(e).__name__,flush=True)
+        raise HTTPException(503,'Fulfillment failed; retry required') from None
+    return {'received':True}
