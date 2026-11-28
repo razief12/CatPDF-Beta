@@ -264,8 +264,14 @@ def renewal_validate(sub,record,uid):
     if not isinstance(sub.get('cancel_at_period_end'),bool): raise ValueError('Missing renewal status')
     return {'plan':record['plan'],'paid_until':record['paid_until'],'status':sub.get('status'),'cancel_at_period_end':sub['cancel_at_period_end'],'cancel_at':sub.get('cancel_at'),'manageable':sub.get('status') in ('active','trialing')}
 
+def renewal_log(stage, error):
+    # Never log exception messages, URLs, response bodies or credentials.
+    status=error.code if isinstance(error,urllib.error.HTTPError) else None
+    print("CatPDF renewal diagnostic:",json.dumps({"stage":stage,"error_type":type(error).__name__,"http_status":status}),flush=True)
+
 def renewal_operation(uid,desired=None):
     if not os.getenv('STRIPE_SECRET_KEY','').startswith('sk_test_'): raise HTTPException(503,'Sandbox unavailable')
+    stage="supabase_read"
     try:
         record=renewal_record(uid)
         if not record:
@@ -274,7 +280,10 @@ def renewal_operation(uid,desired=None):
         sid=record['subscription_id']
         if not sid.startswith('sub_'): raise ValueError('Invalid subscription')
         path='subscriptions/'+urllib.parse.quote(sid,safe='')
-        state=renewal_validate(stripe_get(path),record,uid)
+        stage='stripe_read'
+        sub=stripe_get(path)
+        stage='stripe_validate'
+        state=renewal_validate(sub,record,uid)
         if desired is not None:
             if not state['manageable']: raise HTTPException(409,'Subscription cannot be changed; contact support')
             # Do not clear a separately scheduled cancellation silently.
@@ -282,14 +291,19 @@ def renewal_operation(uid,desired=None):
             if state['cancel_at_period_end']!=desired:
                 key=os.environ['STRIPE_SECRET_KEY']
                 req=urllib.request.Request('https://api.stripe.com/v1/'+path,data=urllib.parse.urlencode({'cancel_at_period_end':str(desired).lower()}).encode(),headers={'Authorization':'Basic '+base64.b64encode((key+':').encode()).decode(),'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':str(uuid.uuid4())},method='POST')
+                stage="stripe_update"
                 try:
                     with urllib.request.urlopen(req,timeout=15) as r: json.load(r)
-                except Exception: pass # Verify authoritative state even after timeout.
+                except Exception as e:
+                    renewal_log(stage,e) # Verify authoritative state even after timeout.
+                stage="stripe_verify"
                 state=renewal_validate(stripe_get(path),record,uid)
                 if state['cancel_at_period_end']!=desired: raise HTTPException(503,'Change not confirmed; refresh and retry')
         return {'subscription':state}
     except HTTPException: raise
-    except Exception: raise HTTPException(503,'Renewal service unavailable; refresh and retry') from None
+    except Exception as e:
+        renewal_log(stage,e)
+        raise HTTPException(503,'Renewal service unavailable; refresh and retry') from None
 
 @router.get('/payments/renewal')
 def get_renewal(request: Request):
