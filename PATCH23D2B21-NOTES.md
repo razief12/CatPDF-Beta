@@ -1,0 +1,2 @@
+# Patch23D2B2.1
+Apply payment23d2b21.sql in Supabase before deploying. Existing device rows retained; primary key becomes (user_id, device_id). Per-account caps and active session logic unchanged. Shared devices allowed globally for Beta; multiple free accounts can obtain separate quotas. Restore exclusive policy only after resolving shared device rows. Subscription refresh added after login; payment code untouched. SQL and browser integration require live sandbox tests.
