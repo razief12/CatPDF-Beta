@@ -1,0 +1,8 @@
+test_gate (test_patch23d2b2.Test.test_gate) ... ok
+test_invoice (test_patch23d2b2.Test.test_invoice) ... ok
+test_prices (test_patch23d2b2.Test.test_prices) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.002s
+
+OK

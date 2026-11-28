@@ -1,4 +1,4 @@
-"""Sandbox-only price validation. Sandbox checkout preview; fulfillment is not implemented."""
+"""Sandbox manual and recurring payment fulfillment."""
 import os, json, urllib.request, urllib.parse, urllib.error, base64, asyncio, uuid
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -34,7 +34,7 @@ def verify():
 # Verification is opt-in from server startup configuration, not a public API.
 @router.get('/payments/status')
 def status():
-    return {'sandbox':True,'checkout_enabled':True,'price_verification':'see Render startup logs'}
+    return {'sandbox':True,'checkout_enabled':True,'price_verification':'see Render startup logs','auto_renew_enabled':os.getenv('CATPDF_AUTO_RENEW_SANDBOX') == '1' and os.getenv('STRIPE_SECRET_KEY','').startswith('sk_test_')}
 async def startup_verify():
     try:
         result=await asyncio.to_thread(verify)
@@ -50,7 +50,7 @@ class CheckoutChoice(BaseModel):
 def checkout(body: CheckoutChoice, request: Request):
     expected = PRICES.get(body.choice)
     if expected is None: raise HTTPException(400, 'Unknown plan')
-    if expected[3]: raise HTTPException(503, 'Automatic renewal is temporarily unavailable')
+    if expected[3] and os.getenv('CATPDF_AUTO_RENEW_SANDBOX') != '1': raise HTTPException(503, 'Automatic renewal is temporarily unavailable')
     if not os.environ.get('STRIPE_WEBHOOK_SECRET') or not os.environ.get('SUPABASE_SERVICE_ROLE_KEY'): raise HTTPException(503, 'Payment fulfillment is not configured')
     key = os.environ.get('STRIPE_SECRET_KEY', '')
     if not key.startswith('sk_test_'): raise HTTPException(503, 'Sandbox unavailable')
@@ -92,7 +92,7 @@ def checkout(body: CheckoutChoice, request: Request):
         site='https://razief12.github.io/CatPDF-Beta/'
         data={'mode':'subscription' if expected[3] else 'payment','line_items[0][price]':expected[0],'line_items[0][quantity]':'1','success_url':site+'?payment=test_success','cancel_url':site+'?payment=cancelled','client_reference_id':uid,'metadata[user_id]':uid,'metadata[choice]':body.choice,'metadata[reservation]':reservation,'allowed_payment_method_types[0]':'card','expires_at':str(int(time.time())+1860)}
         if expected[3]:
-            data.update({'subscription_data[metadata][user_id]':uid,'subscription_data[metadata][choice]':body.choice})
+            data.update({'subscription_data[metadata][user_id]':uid,'subscription_data[metadata][choice]':body.choice,'subscription_data[metadata][reservation]':reservation})
         req=urllib.request.Request('https://api.stripe.com/v1/checkout/sessions',data=urllib.parse.urlencode(data).encode(),headers={'Authorization':auth,'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':reservation},method='POST')
         submitted = True
         with urllib.request.urlopen(req,timeout=15) as r: session=json.load(r)
@@ -169,6 +169,12 @@ async def webhook(request: Request):
     try: event=json.loads(raw)
     except ValueError: raise HTTPException(400,'Invalid event') from None
     if event.get('livemode') is not False: raise HTTPException(400,'Sandbox required')
+    if event.get('type') == 'invoice.paid':
+        try: await asyncio.to_thread(fulfill_invoice,event['data']['object']['id'])
+        except Exception as e:
+            print('CatPDF invoice fulfillment failed:',type(e).__name__,flush=True)
+            raise HTTPException(503,'Invoice fulfillment failed; retry required') from None
+        return {'received':True}
     if event.get('type') not in ('checkout.session.completed','checkout.session.async_payment_succeeded'): return {'received':True}
     s=event['data']['object']
     if s.get('mode')!='payment' or s.get('payment_status')!='paid': return {'received':True}
@@ -177,3 +183,26 @@ async def webhook(request: Request):
         print('CatPDF fulfillment failed:',type(e).__name__,flush=True)
         raise HTTPException(503,'Fulfillment failed; retry required') from None
     return {'received':True}
+
+
+def fulfill_invoice(invoice_id):
+    if not isinstance(invoice_id,str) or not invoice_id.startswith('in_'): raise ValueError('Invalid invoice')
+    inv=stripe_get('invoices/'+urllib.parse.quote(invoice_id,safe=''))
+    if inv.get('id')!=invoice_id or inv.get('livemode') is not False or inv.get('status')!='paid' or inv.get('paid_out_of_band'): raise ValueError('Unverified invoice')
+    if inv.get('billing_reason') not in ('subscription_create','subscription_cycle'): return {'ignored':True}
+    parent=inv.get('parent') or {}
+    sid=(parent.get('subscription_details') or {}).get('subscription') or inv.get('subscription')
+    if not isinstance(sid,str) or not sid.startswith('sub_'): raise ValueError('Missing subscription')
+    sub=stripe_get('subscriptions/'+urllib.parse.quote(sid,safe=''))
+    meta=sub.get('metadata') or {}; choice=meta.get('choice'); expected=PRICES.get(choice)
+    if not choice and not meta.get('user_id'): return {'ignored':True}
+    if not expected or not expected[3] or sub.get('id')!=sid or sub.get('livemode') is not False or sub.get('customer')!=inv.get('customer'): raise ValueError('Subscription mismatch')
+    uid=str(uuid.UUID(meta['user_id'])); reservation=str(uuid.UUID(meta['reservation']))
+    if inv.get('currency')!=expected[1] or inv.get('amount_paid')!=expected[2] or inv.get('amount_due')!=expected[2]: raise ValueError('Invoice amount mismatch')
+    lines=inv.get('lines') or {}; items=lines.get('data') or []
+    if lines.get('has_more') or len(items)!=1: raise ValueError('Unexpected invoice lines')
+    line=items[0]; price=((line.get('pricing') or {}).get('price_details') or {}).get('price') or (line.get('price') or {}).get('id')
+    if price!=expected[0] or line.get('quantity')!=1 or line.get('amount')!=expected[2]: raise ValueError('Invoice line mismatch')
+    period=line.get('period') or {}; start=int(period['start']); end=int(period['end'])
+    if not 0<end-start<=100*86400: raise ValueError('Invalid billing period')
+    return payment_rpc('catpdf_fulfill_invoice_v1',{'p_invoice':invoice_id,'p_subscription':sid,'p_user':uid,'p_reservation':reservation,'p_plan':choice.split('_')[0],'p_amount':expected[2],'p_currency':expected[1],'p_start':start,'p_end':end})
