@@ -1,0 +1,1 @@
+Frontend-only candidate fix. Backend remains 4.5.6.5.43. Frontend asset/cache revision .44. Active cancellation handlers, immediate polling stop, cancel click handling. Node syntax and mocked request test passed; browser and live worker tests pending. No payment or SQL changes.
