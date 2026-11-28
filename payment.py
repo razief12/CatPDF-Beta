@@ -45,6 +45,7 @@ async def startup_verify():
 
 class CheckoutChoice(BaseModel):
     choice: str
+    replace_session: str | None = None
 
 @router.post('/payments/checkout')
 def checkout(body: CheckoutChoice, request: Request):
@@ -70,15 +71,26 @@ def checkout(body: CheckoutChoice, request: Request):
             if (old.get('id') != existing or old.get('livemode') is not False
                     or old.get('client_reference_id') != uid or meta.get('user_id') != uid):
                 raise HTTPException(503, 'Unable to verify existing checkout')
+            if body.replace_session and body.replace_session != existing:
+                raise HTTPException(409, 'Checkout changed; select your plan again')
             if old.get('status') == 'open':
+                if old.get('payment_status') != 'unpaid':
+                    raise HTTPException(409, 'Payment requires reconciliation')
                 if meta.get('choice') != body.choice:
-                    raise HTTPException(409, 'Existing checkout is for another plan; wait for expiry')
-                target = old.get('url') or ''
-                if urllib.parse.urlparse(target).netloc != 'checkout.stripe.com' or not target.startswith('https://'):
-                    raise HTTPException(503, 'Invalid sandbox session URL')
-                return {'url':target,'sandbox':True}
-            if old.get('status') == 'expired':
+                    if body.replace_session != existing:
+                        raise HTTPException(409, {'code':'checkout_conflict','session':existing,'choice':meta.get('choice')})
+                    old = expire_checkout(existing, uid)
+                else:
+                    target = old.get('url') or ''
+                    if urllib.parse.urlparse(target).netloc != 'checkout.stripe.com' or not target.startswith('https://'):
+                        raise HTTPException(503, 'Invalid sandbox session URL')
+                    return {'url':target,'sandbox':True}
+            if old.get('status') == 'expired' and old.get('payment_status') == 'unpaid':
                 payment_rpc('catpdf_checkout_release', {'p_user':uid,'p_session':existing})
+            else:
+                raise HTTPException(409, 'Payment pending or completed; check dashboard')
+        elif body.replace_session:
+            raise HTTPException(409, 'Checkout changed; select your plan again')
         result = payment_rpc('catpdf_checkout_reserve', {'p_user':uid,'p_reservation':reservation})
         if not result.get('allowed'): raise HTTPException(409,result.get('reason','Checkout blocked'))
     except HTTPException: raise
@@ -128,6 +140,24 @@ def stripe_get(path):
     if not key.startswith('sk_test_'): raise ValueError('Sandbox required')
     auth='Basic '+base64.b64encode((key+':').encode()).decode()
     with urllib.request.urlopen(urllib.request.Request('https://api.stripe.com/v1/'+path,headers={'Authorization':auth}),timeout=15) as r: return json.load(r)
+
+def expire_checkout(session_id, uid):
+    if not session_id.startswith('cs_test_'): raise ValueError('Sandbox required')
+    key=os.environ['STRIPE_SECRET_KEY']
+    if not key.startswith('sk_test_'): raise ValueError('Sandbox required')
+    path='checkout/sessions/'+urllib.parse.quote(session_id,safe='')
+    auth='Basic '+base64.b64encode((key+':').encode()).decode()
+    try:
+        req=urllib.request.Request('https://api.stripe.com/v1/'+path+'/expire',data=b'',headers={'Authorization':auth,'Idempotency-Key':'expire-'+session_id},method='POST')
+        with urllib.request.urlopen(req,timeout=15) as r: json.load(r)
+    except Exception:
+        pass  # A timeout or race is resolved only by authoritative retrieval.
+    old=stripe_get(path)
+    if old.get('id')!=session_id or old.get('livemode') is not False or old.get('client_reference_id')!=uid or (old.get('metadata') or {}).get('user_id')!=uid:
+        raise HTTPException(503,'Unable to verify checkout expiration')
+    if old.get('status')!='expired' or old.get('payment_status')!='unpaid':
+        raise HTTPException(409,'Checkout could not be cancelled safely; check dashboard')
+    return old
 
 def payment_rpc(name, data):
     key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
