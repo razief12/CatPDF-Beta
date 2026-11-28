@@ -34,7 +34,23 @@ el('cpBell').onclick=()=>{showInfo('Notifications','<div id="cpNoticeList"></div
 const plans=[['free','Free','0','0','Forever','2 downloads/day','Basic tools','1 device'],['daily','Daily Pass','7.90','1.99','24 hours','5 downloads total','All active tools','1 device'],['monthly','Monthly Pro','35.90','8.99','1 month','10 downloads/day','All active tools','2 devices'],['quarterly','Quarterly Pro','96.90','24.29','3 months','15 downloads/day','All active tools','3 devices']];
 let currency='MYR';
 let autoEnabled=false;
-async function refreshSubscription(){const root=el('cpBilling');root.textContent='';if(!user)return;const identity=user.id;try{const {data,error}=await client.rpc('catpdf_subscription_info');if(user?.id!==identity)return;if(error)throw error;root.textContent=data?'Automatic renewal • Paid through / expected next billing: '+new Date(data.paid_until).toLocaleString()+' (Sandbox; contact support to cancel)':'Manual renewal / no recurring subscription';}catch(e){if(user?.id===identity)root.textContent='Renewal details unavailable';}}
+let renewalBusy=false, renewalSequence=0;
+async function refreshSubscription(){
+ const root=el('cpBilling'), seq=++renewalSequence;root.textContent='';if(!user)return;const identity=user.id;
+ const current=()=>user?.id===identity&&seq===renewalSequence;
+ try{
+  const {data,error}=await client.rpc('catpdf_subscription_info');if(!current())return;if(error)throw error;
+  if(!data){root.textContent='Manual renewal / no recurring subscription';return;}
+  root.textContent='Checking renewal status…';
+  const headers=await window.CatQuota.headers();if(!current())return;
+  const r=await fetch(window.CATPDF_API_URL+'/payments/renewal',{headers,cache:'no-store'});if(!r.ok)throw Error('Unavailable');const {subscription:s}=await r.json();if(!current())return;if(!s)throw Error('Unavailable');
+  root.textContent=(s.cancel_at_period_end?'Renewal cancelled at period end':s.status==='active'?'Automatic renewal': 'Subscription status: '+s.status)+' • Paid through: '+new Date(s.paid_until).toLocaleString()+' (Sandbox)';
+  if(!s.manageable)return;
+  const btn=document.createElement('button');btn.type='button';btn.textContent=s.cancel_at_period_end?'Resume auto-renewal':'Cancel auto-renewal';btn.disabled=renewalBusy;root.append(document.createElement('br'),btn);
+  btn.onclick=async()=>{if(renewalBusy||!current())return;const desired=!s.cancel_at_period_end;if(!confirm(desired?'Stop automatic renewal? Your paid access remains until expiry. No refund is issued.':'Resume automatic renewal? Future recurring charges will resume.'))return;
+   renewalBusy=true;btn.disabled=true;try{const headers=await window.CatQuota.headers();if(!current())return;const response=await fetch(window.CATPDF_API_URL+'/payments/renewal',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({cancel_at_period_end:desired})});if(!response.ok)throw Error('Change not confirmed');if(user?.id===identity)notify(desired?'Auto-renewal cancellation confirmed.':'Auto-renewal resumed.');}catch(e){if(user?.id===identity)toast('Renewal change not confirmed. Check current status.','err');}finally{renewalBusy=false;if(user?.id===identity)await refreshSubscription();}};
+ }catch(e){if(current())root.textContent='Renewal details unavailable. Reopen dashboard to retry.';}
+}
 
 async function showPricing(reason=''){
  autoEnabled=false;try{const r=await fetch(window.CATPDF_API_URL+'/payments/status');const d=await r.json();autoEnabled=r.ok&&d.sandbox===true&&d.auto_renew_enabled===true;}catch(e){}

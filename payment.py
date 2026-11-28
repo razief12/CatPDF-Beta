@@ -236,3 +236,65 @@ def fulfill_invoice(invoice_id):
     period=line.get('period') or {}; start=int(period['start']); end=int(period['end'])
     if not 0<end-start<=100*86400: raise ValueError('Invalid billing period')
     return payment_rpc('catpdf_fulfill_invoice_v1',{'p_invoice':invoice_id,'p_subscription':sid,'p_user':uid,'p_reservation':reservation,'p_plan':choice.split('_')[0],'p_amount':expected[2],'p_currency':expected[1],'p_start':start,'p_end':end})
+
+# B3.1: Stripe is authoritative for cancellation scheduling. Never mutate paid access.
+class RenewalChoice(BaseModel):
+    cancel_at_period_end: bool
+
+def renewal_account(request):
+    token=request.headers.get('authorization','')
+    if not token.startswith('Bearer '): raise HTTPException(401,'Login required')
+    try:
+        req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/auth/v1/user',headers={'apikey':'sb_publishable_y9pVKZ47UfWibxYaoOcoAg_3mlqpDPs','Authorization':token})
+        with urllib.request.urlopen(req,timeout=10) as r: return str(uuid.UUID(json.load(r)['id']))
+    except Exception: raise HTTPException(401,'Unable to verify account') from None
+
+def renewal_record(uid):
+    key=os.environ['SUPABASE_SERVICE_ROLE_KEY']
+    query=urllib.parse.urlencode({'user_id':'eq.'+uid,'select':'subscription_id,plan,currency,paid_until'})
+    req=urllib.request.Request('https://unauvicwfjnfqyrtexhy.supabase.co/rest/v1/catpdf_subscriptions?'+query,headers={'apikey':key,'Authorization':'Bearer '+key})
+    with urllib.request.urlopen(req,timeout=10) as r: rows=json.load(r)
+    if len(rows)>1: raise ValueError('Ambiguous subscription')
+    return rows[0] if rows else None
+
+def renewal_validate(sub,record,uid):
+    meta=sub.get('metadata') or {}
+    if (sub.get('id')!=record['subscription_id'] or sub.get('livemode') is not False or meta.get('user_id')!=uid or meta.get('choice')!=record['plan']+'_'+record['currency']+'_auto'):
+        raise HTTPException(409,'Subscription ownership or plan mismatch')
+    if not isinstance(sub.get('cancel_at_period_end'),bool): raise ValueError('Missing renewal status')
+    return {'plan':record['plan'],'paid_until':record['paid_until'],'status':sub.get('status'),'cancel_at_period_end':sub['cancel_at_period_end'],'cancel_at':sub.get('cancel_at'),'manageable':sub.get('status') in ('active','trialing')}
+
+def renewal_operation(uid,desired=None):
+    if not os.getenv('STRIPE_SECRET_KEY','').startswith('sk_test_'): raise HTTPException(503,'Sandbox unavailable')
+    try:
+        record=renewal_record(uid)
+        if not record:
+            if desired is not None: raise HTTPException(409,'No recurring subscription')
+            return {'subscription':None}
+        sid=record['subscription_id']
+        if not sid.startswith('sub_'): raise ValueError('Invalid subscription')
+        path='subscriptions/'+urllib.parse.quote(sid,safe='')
+        state=renewal_validate(stripe_get(path),record,uid)
+        if desired is not None:
+            if not state['manageable']: raise HTTPException(409,'Subscription cannot be changed; contact support')
+            # Do not clear a separately scheduled cancellation silently.
+            if not desired and state['cancel_at'] and not state['cancel_at_period_end']: raise HTTPException(409,'Custom cancellation requires support')
+            if state['cancel_at_period_end']!=desired:
+                key=os.environ['STRIPE_SECRET_KEY']
+                req=urllib.request.Request('https://api.stripe.com/v1/'+path,data=urllib.parse.urlencode({'cancel_at_period_end':str(desired).lower()}).encode(),headers={'Authorization':'Basic '+base64.b64encode((key+':').encode()).decode(),'Content-Type':'application/x-www-form-urlencoded','Idempotency-Key':str(uuid.uuid4())},method='POST')
+                try:
+                    with urllib.request.urlopen(req,timeout=15) as r: json.load(r)
+                except Exception: pass # Verify authoritative state even after timeout.
+                state=renewal_validate(stripe_get(path),record,uid)
+                if state['cancel_at_period_end']!=desired: raise HTTPException(503,'Change not confirmed; refresh and retry')
+        return {'subscription':state}
+    except HTTPException: raise
+    except Exception: raise HTTPException(503,'Renewal service unavailable; refresh and retry') from None
+
+@router.get('/payments/renewal')
+def get_renewal(request: Request):
+    return renewal_operation(renewal_account(request))
+
+@router.post('/payments/renewal')
+def set_renewal(body: RenewalChoice,request: Request):
+    return renewal_operation(renewal_account(request),body.cancel_at_period_end)
