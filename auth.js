@@ -27,7 +27,7 @@ async function queryQuota(consume=false,tool='',activate=false){if(!ready)throw 
 function paint(q){quotaEpoch++;quota=q;el('cpQuota').textContent=q?`${q.remaining}/${q.limit} left`:'Checking quota…';el('cpPlanValue').textContent=q?q.plan.toUpperCase():'Checking subscription…';el('cpQuotaValue').textContent=q?`${q.remaining} / ${q.limit} remaining`:'Checking allowance…';el('cpExpiry').textContent=q?.expires_at?'Subscription expires: '+new Date(q.expires_at).toLocaleString():q?'No active paid expiry':'Checking expiry…';el('cpQuotaReset').textContent=q?.reset_at?'Resets / expires: '+new Date(q.reset_at).toLocaleString():q?'Daily reset: 00:00 UTC':'Checking reset…';}
 async function refreshQuota(){
  if(pending)return;const identity=user?.id, epoch=quotaEpoch;
- if(quotaRead?.identity===identity&&quotaRead.epoch===epoch)return quotaRead.promise;
+ if(quotaRead&&quotaRead.identity===identity&&quotaRead.epoch===epoch)return quotaRead.promise;
  const current=()=>identity===user?.id&&epoch===quotaEpoch;
  const task={identity,epoch};quotaRead=task;
  task.promise=(async()=>{
