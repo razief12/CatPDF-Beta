@@ -622,6 +622,7 @@ function setupDragReorder(grid) {
 document.addEventListener('click', e => {
   const panel = e.target.closest('.panel');
   if (panel && (panel.dataset.loading === 'true' || panel.dataset.processing === 'true')) {
+    if (e.target.closest('button[aria-label="Cancel processing"]')) return;
     e.preventDefault(); e.stopImmediatePropagation();
   }
 }, true);
